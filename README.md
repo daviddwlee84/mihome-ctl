@@ -37,10 +37,12 @@ uv tool install 'mihome-ctl[mcp]'      # MCP server (for Claude / agents)
 After installing, wire up the agent skill and MCP server in one command:
 
 ```bash
-mihome-ctl setup            # install the `mihome-ir` skill (~/.claude/skills) + register the MCP
+mihome-ctl setup            # lists what it will do, asks [y/N], then installs the skill + registers the MCP
+mihome-ctl setup -y         # skip the confirmation prompt (non-interactive)
 mihome-ctl setup --project  # install into ./.claude instead of the user dir
 mihome-ctl setup --npx      # install the skill via `npx skills add` (vercel-labs/skills) instead
-mihome-ctl setup --dry-run  # preview without writing anything
+mihome-ctl setup --dry-run  # preview what it would do, write nothing
+mihome-ctl setup --uninstall  # remove the skill + unregister the MCP (also honors -y / --dry-run)
 ```
 
 `setup` ships the skill inside the wheel, so the default path needs **no Node** —
