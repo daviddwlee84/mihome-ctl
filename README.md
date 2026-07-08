@@ -81,6 +81,9 @@ mihome-ctl prop-get --did <DID> --siid 2 --piid 1              # read a property
 mihome-ctl prop-set --did <DID> --siid 2 --piid 1 --value true # write a property
 mihome-ctl action   --did <DID> --siid 2 --aiid 1 --args '[]'  # call an action
 mihome-ctl miio     --did <DID> --method get_prop --params '["power"]'  # raw local miIO
+
+mihome-ctl ha-export             # generate a Home Assistant config from the extracted tokens
+mihome-ctl ha-export --region tw # one region only (device_customize + per-subnet list)
 ```
 
 On first run a QR is drawn in the terminal (or open `http://127.0.0.1:31415`) — scan
