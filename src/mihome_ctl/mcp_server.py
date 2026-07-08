@@ -13,7 +13,7 @@ import json
 from .config import StateDir
 from .connector import QrCodeXiaomiCloudConnector
 from .core import operations as ops
-from .core.miot import AC_MODES
+from .core.miot import AC_MODES, coerce_value
 from .session import connector_from_session
 
 _NO_SESSION = "Not logged in or the session has expired. Run `mihome-ctl ir` once in a terminal (scan the QR), then use MCP."
@@ -27,6 +27,12 @@ def _load_ir(state: StateDir) -> dict | None:
     if not state.ir_json.exists():
         return None
     return json.loads(state.ir_json.read_text(encoding="utf-8"))
+
+
+def _load_tokens(state: StateDir) -> list[dict]:
+    if not state.tokens_json.exists():
+        return []
+    return json.loads(state.tokens_json.read_text(encoding="utf-8"))
 
 
 def build_server():
@@ -133,6 +139,52 @@ def build_server():
         p = ops.ac_set_props(conn, did, country, temp, mode_val)
         s = ops.ac_send_on(conn, did, country)
         return f"Set {(mode or '')} {temp if temp is not None else ''} → props={'✅' if p.ok else '❌'} send={'✅' if s.ok else '❌'}"
+
+    @mcp.tool()
+    def device_prop_get(did: str, siid: int, piid: int) -> str:
+        """Read a MIoT property of any extracted device over the cloud (raw siid/piid)."""
+        state = StateDir.resolve()
+        dev = ops.find_device(_load_tokens(state), did)
+        if dev is None:
+            return f"did={did} not found; run `mihome-ctl extract` then `devices`."
+        conn = _conn(state)
+        if conn is None:
+            return _NO_SESSION
+        val = ops.miot_get(conn, did, dev.get("region", "cn"), siid, piid)
+        return f"{dev.get('name', '')} siid={siid} piid={piid} = {val}"
+
+    @mcp.tool()
+    def device_prop_set(did: str, siid: int, piid: int, value: str) -> str:
+        """Write a MIoT property of any device over the cloud. value is JSON-ish (26 / true / "text")."""
+        state = StateDir.resolve()
+        dev = ops.find_device(_load_tokens(state), did)
+        if dev is None:
+            return f"did={did} not found."
+        conn = _conn(state)
+        if conn is None:
+            return _NO_SESSION
+        r = ops.miot_set(conn, did, dev.get("region", "cn"), siid, piid, coerce_value(value))
+        return f"{'✅' if r.ok else '❌'} set siid={siid} piid={piid} = {value}" + (
+            "" if r.ok else f" {r.resp}"
+        )
+
+    @mcp.tool()
+    def device_action(did: str, siid: int, aiid: int, args: str = "[]") -> str:
+        """Call a MIoT action of any device over the cloud. args is a JSON list, e.g. [26]."""
+        state = StateDir.resolve()
+        dev = ops.find_device(_load_tokens(state), did)
+        if dev is None:
+            return f"did={did} not found."
+        conn = _conn(state)
+        if conn is None:
+            return _NO_SESSION
+        a = coerce_value(args)
+        if not isinstance(a, list):
+            a = [a]
+        r = ops.miot_call(conn, did, dev.get("region", "cn"), siid, aiid, a)
+        return f"{'✅' if r.ok else '❌'} action siid={siid} aiid={aiid} in={a}" + (
+            "" if r.ok else f" {r.resp}"
+        )
 
     return mcp
 

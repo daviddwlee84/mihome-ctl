@@ -6,7 +6,22 @@ import sys
 
 import tyro
 
-from .commands import extract, ir, ir_ac, ir_code, ir_send, setup, show, tui, verify
+from .commands import (
+    action,
+    devices,
+    extract,
+    ir,
+    ir_ac,
+    ir_code,
+    ir_send,
+    miio,
+    prop_get,
+    prop_set,
+    setup,
+    show,
+    tui,
+    verify,
+)
 
 
 def main() -> None:
@@ -19,6 +34,11 @@ def main() -> None:
             "ir-send": ir_send.ir_send,
             "ir-ac": ir_ac.ir_ac,
             "ir-code": ir_code.ir_code,
+            "devices": devices.devices,
+            "prop-get": prop_get.prop_get,
+            "prop-set": prop_set.prop_set,
+            "action": action.action,
+            "miio": miio.miio,
             "setup": setup.setup,
             "tui": tui.tui,
         },

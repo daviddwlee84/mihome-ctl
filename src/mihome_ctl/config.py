@@ -9,7 +9,10 @@ resolved in the following priority order:
 3. The nearest ``./.secrets`` found by walking up from the cwd (so that when run
    as a submodule inside a repo like SmartHome, it still writes back to the same
    ``.secrets`` and reuses the existing cached session).
-4. Fall back to the platformdirs user state dir (for a standalone install).
+4. Fall back to the user state dir (for a standalone install): honor
+   ``XDG_STATE_HOME`` on every platform (incl. macOS), otherwise the platformdirs
+   default. If ``XDG_STATE_HOME`` points at a not-yet-created dir but a legacy
+   platformdirs dir already has data, keep the legacy one so nothing is orphaned.
 
 Secret filenames follow the old tooling (``mi-tokens.json`` etc.) to stay
 compatible with an existing ``.secrets/``.
@@ -44,7 +47,14 @@ class StateDir:
         for parent in [cwd, *cwd.parents]:
             if (parent / ".secrets").is_dir():
                 return cls(parent / ".secrets")
-        return cls(Path(platformdirs.user_state_dir(APP_NAME)))
+        # XDG-aware fallback: honor XDG_STATE_HOME even on macOS, but don't
+        # orphan an existing legacy (~/Library/Application Support) cache.
+        legacy = Path(platformdirs.user_state_dir(APP_NAME))
+        xdg = os.environ.get("XDG_STATE_HOME")
+        if xdg:
+            cand = Path(xdg).expanduser() / APP_NAME
+            return cls(legacy if (not cand.exists() and legacy.exists()) else cand)
+        return cls(legacy)
 
     @property
     def tokens_json(self) -> Path:

@@ -32,6 +32,11 @@ class VerifyResult:
     firmware: str = ""
 
 
+def _resolve_ip(dev: dict) -> str | None:
+    """The device's current LAN IP: ARP-resolved (cloud localip is often stale), else localip."""
+    return arp_ip_for(dev.get("mac", "")) or (dev.get("localip") or None)
+
+
 def verify_device(dev: dict) -> VerifyResult:
     """Run LAN-local verification for a single device (python-miio). ARP resolves the current IP."""
     model = dev.get("model", "")
@@ -40,10 +45,7 @@ def verify_device(dev: dict) -> VerifyResult:
         return VerifyResult(
             False, "", "no token (IR virtual remote / cloud device), cannot verify locally", model
         )
-    ip = dev.get("localip") or ""
-    live = arp_ip_for(dev.get("mac", ""))
-    if live:
-        ip = live
+    ip = _resolve_ip(dev)
     if not ip:
         return VerifyResult(False, "", "no usable IP (most likely not on your current LAN)", model)
     try:
@@ -276,3 +278,90 @@ def ac_control(
     steps = [ac_set_props(conn, did, country, temp, mode_val)]
     steps.append(ac_send_on(conn, did, country))
     return steps
+
+
+# ---------------------------------------------------------------- device: generic MIoT (cloud)
+
+
+def find_device(rows: list[dict], did: str) -> dict | None:
+    """Find an extracted device row by did."""
+    return next((r for r in rows if str(r.get("did", "")) == str(did)), None)
+
+
+def miot_get(conn, did: str, country: str, siid: int, piid: int) -> Any:
+    """Read one MIoT property over the cloud. Returns the value (or the raw resp on odd shapes)."""
+    resp = api(
+        conn, country, "/miotspec/prop/get", {"params": [{"did": did, "siid": siid, "piid": piid}]}
+    )
+    res = resp.get("result") if isinstance(resp, dict) else None
+    if isinstance(res, list) and res and isinstance(res[0], dict) and "value" in res[0]:
+        return res[0]["value"]
+    return resp
+
+
+def miot_set(conn, did: str, country: str, siid: int, piid: int, value: Any) -> AcResult:
+    """Write one MIoT property over the cloud."""
+    resp = api(
+        conn,
+        country,
+        "/miotspec/prop/set",
+        {"params": [{"did": did, "siid": siid, "piid": piid, "value": value}]},
+    )
+    return AcResult(miot_ok(resp), "prop/set", resp)
+
+
+def miot_call(
+    conn, did: str, country: str, siid: int, aiid: int, args: list | None = None
+) -> AcResult:
+    """Call a MIoT action over the cloud."""
+    resp = api(
+        conn,
+        country,
+        "/miotspec/action",
+        {"params": {"did": did, "siid": siid, "aiid": aiid, "in": args or []}},
+    )
+    return AcResult(miot_ok(resp), "action", resp)
+
+
+# ---------------------------------------------------------------- device: local (python-miio)
+
+
+def _require_miio():
+    try:
+        import miio
+    except ModuleNotFoundError as e:
+        raise SystemExit(
+            "[mihome-ctl] local device control requires python-miio: pip install 'mihome-ctl[verify]'"
+        ) from e
+    return miio
+
+
+def _local_target(dev: dict) -> tuple[str, str]:
+    token = dev.get("token")
+    ip = _resolve_ip(dev)
+    if not token or not ip:
+        raise SystemExit(
+            f"[mihome-ctl] {dev.get('model', '')} has no token/IP for local control "
+            "(not on your LAN?)"
+        )
+    return ip, token
+
+
+def local_get(dev: dict, siid: int, piid: int) -> Any:
+    ip, token = _local_target(dev)
+    return _require_miio().MiotDevice(ip, token).get_property_by(siid, piid)
+
+
+def local_set(dev: dict, siid: int, piid: int, value: Any) -> Any:
+    ip, token = _local_target(dev)
+    return _require_miio().MiotDevice(ip, token).set_property_by(siid, piid, value)
+
+
+def local_call(dev: dict, siid: int, aiid: int, args: list | None = None) -> Any:
+    ip, token = _local_target(dev)
+    return _require_miio().MiotDevice(ip, token).call_action_by(siid, aiid, args or [])
+
+
+def local_send(dev: dict, method: str, params: list | None = None) -> Any:
+    ip, token = _local_target(dev)
+    return _require_miio().Device(ip, token).send(method, params or [])

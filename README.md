@@ -56,7 +56,8 @@ uv tool install 'mihome-ctl[mcp]' && mihome-ctl setup
 - **Agent Skill** `mihome-ir` — lets Claude control the TV / A-C / fan by voice-style
   requests. Also installable directly: `npx skills add daviddwlee84/mihome-ctl --skill mihome-ir`.
 - **MCP server** `mihome-ctl-mcp` — exposes `list_remotes` / `list_keys` / `ir_send` /
-  `ir_ac` as MCP tools (reuses the QR session cached by `mihome-ctl ir`).
+  `ir_ac` plus `device_prop_get` / `device_prop_set` / `device_action` (control any
+  device) as MCP tools (reuses the QR session cached by `mihome-ctl ir`).
 
 ## Usage
 
@@ -72,6 +73,13 @@ mihome-ctl ir-send --remote <name>            # omit --key to list a remote's ke
 mihome-ctl ir-ac --temp 26 --mode cool        # absolute A/C control (state-based)
 mihome-ctl ir-ac --off | --status
 mihome-ctl ir-code --matchid xm_1_199         # IRDB matchid → per-key Pronto (see notes)
+
+# control any (non-IR) device by MIoT siid/piid — cloud by default, --local for LAN
+mihome-ctl devices                                             # list devices + their did
+mihome-ctl prop-get --did <DID> --siid 2 --piid 1              # read a property
+mihome-ctl prop-set --did <DID> --siid 2 --piid 1 --value true # write a property
+mihome-ctl action   --did <DID> --siid 2 --aiid 1 --args '[]'  # call an action
+mihome-ctl miio     --did <DID> --method get_prop --params '["power"]'  # raw local miIO
 ```
 
 On first run a QR is drawn in the terminal (or open `http://127.0.0.1:31415`) — scan
@@ -86,7 +94,10 @@ Resolved in this order (secret filenames: `mi-tokens.json` / `mi-session.json` /
 1. `MIHOME_CTL_HOME` environment variable
 2. the nearest `./.secrets/` walking up from the cwd (convenient when embedded as a
    submodule inside another repo)
-3. otherwise `platformdirs` user state dir
+3. otherwise the user state dir — honoring `XDG_STATE_HOME` on every platform
+   (incl. macOS), else the `platformdirs` default (`~/Library/Application Support/mihome-ctl`
+   on macOS, `~/.local/state/mihome-ctl` on Linux). An existing legacy dir is still read
+   so nothing is orphaned.
 
 All secrets are written with mode `0600`.
 

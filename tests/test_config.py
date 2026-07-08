@@ -22,9 +22,32 @@ def test_nearest_secrets(monkeypatch, tmp_path):
 
 def test_platformdirs_fallback(monkeypatch, tmp_path):
     monkeypatch.delenv("MIHOME_CTL_HOME", raising=False)
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cfg.platformdirs, "user_state_dir", lambda name: str(tmp_path / "state"))
     assert StateDir.resolve().root == (tmp_path / "state")
+
+
+def test_xdg_state_home_wins(monkeypatch, tmp_path):
+    # XDG_STATE_HOME honored even on macOS; legacy dir absent → use XDG path.
+    monkeypatch.delenv("MIHOME_CTL_HOME", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cfg.platformdirs, "user_state_dir", lambda name: str(tmp_path / "legacy-none")
+    )
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg"))
+    assert StateDir.resolve().root == (tmp_path / "xdg" / "mihome-ctl")
+
+
+def test_xdg_keeps_legacy_when_it_has_data(monkeypatch, tmp_path):
+    # XDG set but its dir doesn't exist yet, while legacy already holds data → keep legacy.
+    monkeypatch.delenv("MIHOME_CTL_HOME", raising=False)
+    monkeypatch.chdir(tmp_path)
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    monkeypatch.setattr(cfg.platformdirs, "user_state_dir", lambda name: str(legacy))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg-absent"))
+    assert StateDir.resolve().root == legacy
 
 
 def test_paths():
