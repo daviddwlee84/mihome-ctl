@@ -14,20 +14,13 @@ from .config import StateDir
 from .connector import QrCodeXiaomiCloudConnector
 from .core import operations as ops
 from .core.miot import AC_MODES
-from .session import load_session
+from .session import connector_from_session
 
 _NO_SESSION = "Not logged in or the session has expired. Run `mihome-ctl ir` once in a terminal (scan the QR), then use MCP."
 
 
 def _conn(state: StateDir) -> QrCodeXiaomiCloudConnector | None:
-    sess = load_session(state)
-    if not (sess and sess.get("serviceToken") and sess.get("ssecurity") and sess.get("userId")):
-        return None
-    c = QrCodeXiaomiCloudConnector()
-    c.userId = sess["userId"]
-    c._ssecurity = sess["ssecurity"]
-    c._serviceToken = sess["serviceToken"]
-    return c
+    return connector_from_session(state)
 
 
 def _load_ir(state: StateDir) -> dict | None:

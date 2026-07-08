@@ -145,6 +145,18 @@ def find_remote(ir: dict, query: str) -> tuple[str, dict] | None:
     return None
 
 
+def filter_remotes(ir: dict, query: str) -> dict:
+    """Subset of the ir dump whose name/model/did contains `query` (case-insensitive)."""
+    if not query:
+        return dict(ir)
+    q = query.lower()
+    return {
+        did: r
+        for did, r in ir.items()
+        if q in (str(r.get("name", "")) + r.get("model", "") + did).lower()
+    }
+
+
 def remote_keys(r: dict) -> list[dict]:
     return ((r.get("raw_keys") or {}).get("result") or {}).get("keys") or []
 

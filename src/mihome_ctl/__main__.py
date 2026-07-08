@@ -6,7 +6,7 @@ import sys
 
 import tyro
 
-from .commands import extract, ir, ir_ac, ir_code, ir_send, setup, show, verify
+from .commands import extract, ir, ir_ac, ir_code, ir_send, setup, show, tui, verify
 
 
 def main() -> None:
@@ -20,6 +20,7 @@ def main() -> None:
             "ir-ac": ir_ac.ir_ac,
             "ir-code": ir_code.ir_code,
             "setup": setup.setup,
+            "tui": tui.tui,
         },
         prog="mihome-ctl",
         description="Passwordless QR login to the official Xiaomi cloud: extract per-device tokens (tw/sg friendly) + cloud IR control",

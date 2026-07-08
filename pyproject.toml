@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mihome-ctl"
-version = "0.2.0"
+version = "0.3.0"
 description = "Passwordless QR login to the official Xiaomi cloud: extract per-device miIO tokens / BLE keys and control cloud IR remotes (TV / A-C / fan / DIY)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,6 +34,8 @@ dependencies = [
 verify = ["python-miio"]
 # Expose the operations as MCP tools for Claude / agents.
 mcp = ["mcp>=1.2"]
+# Interactive terminal UI.
+tui = ["textual>=0.86,<9"]
 # Build the docs site (mkdocs serve / build).
 docs = [
     "mkdocs>=1.6,<2",
@@ -45,6 +47,7 @@ docs = [
 [project.scripts]
 mihome-ctl = "mihome_ctl.__main__:main"
 mihome-ctl-mcp = "mihome_ctl.mcp_server:main"
+mihome-ctl-tui = "mihome_ctl.tui.app:main"
 
 [project.urls]
 Homepage = "https://github.com/daviddwlee84/mihome-ctl"

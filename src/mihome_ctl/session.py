@@ -23,6 +23,22 @@ def load_session(state: StateDir) -> dict | None:
         return None
 
 
+def connector_from_session(state: StateDir) -> QrCodeXiaomiCloudConnector | None:
+    """Build a connector from the cached session WITHOUT triggering QR login.
+
+    Returns ``None`` when there is no complete cached session. Shared by the MCP
+    server and the TUI, which must never pop a QR prompt.
+    """
+    sess = load_session(state)
+    if not (sess and sess.get("serviceToken") and sess.get("ssecurity") and sess.get("userId")):
+        return None
+    conn = QrCodeXiaomiCloudConnector()
+    conn.userId = sess["userId"]
+    conn._ssecurity = sess["ssecurity"]
+    conn._serviceToken = sess["serviceToken"]
+    return conn
+
+
 def save_session(state: StateDir, conn: QrCodeXiaomiCloudConnector) -> None:
     write_secret(
         state.session_json,
@@ -62,13 +78,11 @@ def new_connector(
     state: StateDir, force_login: bool = False, host: str = "127.0.0.1"
 ) -> tuple[QrCodeXiaomiCloudConnector, bool]:
     """Return (connector, reused). Reuse a stored session to avoid re-scanning the QR."""
+    if not force_login:
+        cached = connector_from_session(state)
+        if cached is not None:
+            return cached, True
     conn = QrCodeXiaomiCloudConnector(host=host)
-    sess = None if force_login else load_session(state)
-    if sess and sess.get("serviceToken") and sess.get("ssecurity") and sess.get("userId"):
-        conn.userId = sess["userId"]
-        conn._ssecurity = sess["ssecurity"]
-        conn._serviceToken = sess["serviceToken"]
-        return conn, True
     install_terminal_qr(conn)
     print(
         "[mihome-ctl] Passwordless QR login (scan the terminal QR, or open http://127.0.0.1:31415):"
