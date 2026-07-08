@@ -75,7 +75,7 @@ mihome-ctl ir-ac --off | --status
 mihome-ctl ir-code --matchid xm_1_199         # IRDB matchid → per-key Pronto (see notes)
 
 # control any (non-IR) device by MIoT siid/piid — cloud by default, --local for LAN
-mihome-ctl devices                                             # list devices + their did
+mihome-ctl devices                                             # pretty table of devices + did (--md for markdown)
 mihome-ctl prop-get --did <DID> --siid 2 --piid 1              # read a property
 mihome-ctl prop-set --did <DID> --siid 2 --piid 1 --value true # write a property
 mihome-ctl action   --did <DID> --siid 2 --aiid 1 --args '[]'  # call an action
@@ -109,7 +109,7 @@ is a thin presentation layer:
 
 - `mihome_ctl.commands` + `__main__` — the **Tyro** CLI (commands above)
 - `mihome_ctl.mcp_server` — an **MCP** server (`mihome-ctl-mcp`, needs `[mcp]`)
-- a future **TUI** would be one more presentation layer over the same core
+- the **TUI** (`mihome-ctl tui`, `[tui]` extra) — **Remotes / Air-Con / Devices** tabs — is another layer over the same core
 
 ## `ir-code` and licensing (important)
 

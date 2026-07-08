@@ -43,6 +43,45 @@ FAKE_IR = {
     },
 }
 
+FAKE_DEVICES = [
+    {
+        "name": "Plug",
+        "model": "x.plug",
+        "did": "did.plug",
+        "region": "tw",
+        "token": "t",
+        "localip": "1.2.3.4",
+    },
+]
+
+
+def test_device_get_cloud(monkeypatch):
+    seen = {}
+
+    def fake_get(conn, did, country, siid, piid):
+        seen.update(did=did, country=country, siid=siid, piid=piid)
+        return 1
+
+    monkeypatch.setattr(ops, "miot_get", fake_get)
+    monkeypatch.setattr(tui_app, "connector_from_session", lambda state: object())
+
+    async def scenario():
+        app = tui_app.MihomeApp(ir=FAKE_IR, devices=FAKE_DEVICES)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.query_one(tui_app.TabbedContent).active = "tab-dev"
+            await pilot.pause()
+            app.query_one("#devices", tui_app.DataTable).move_cursor(row=0)
+            await pilot.pause()
+            app.query_one("#dev-siid", tui_app.Input).value = "2"
+            app.query_one("#dev-piid", tui_app.Input).value = "1"
+            app.on_button_pressed(tui_app.Button.Pressed(app.query_one("#dev-get", tui_app.Button)))
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    asyncio.run(scenario())
+    assert seen == {"did": "did.plug", "country": "tw", "siid": 2, "piid": 1}
+
 
 def test_select_remote_populates_keys():
     async def scenario():
