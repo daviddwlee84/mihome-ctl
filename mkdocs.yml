@@ -1,0 +1,29 @@
+site_name: mihome-ctl
+site_description: 免密碼 QR 登入官方小米雲、抽 per-device token、控制雲端 IR 遙控
+repo_url: https://github.com/daviddwlee84/mihome-ctl
+docs_dir: docs
+
+theme:
+  name: material
+  language: zh-TW
+  palette:
+    - scheme: default
+      toggle: { icon: material/brightness-7, name: 切換深色 }
+    - scheme: slate
+      toggle: { icon: material/brightness-4, name: 切換淺色 }
+  features:
+    - content.code.copy
+    - navigation.sections
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc
+  - pymdownx.details
+  - pymdownx.superfences
+
+nav:
+  - 首頁: index.md
+  - 認證與 Token: auth-token.md
+  - 登入疑難排解: login-troubleshooting.md
+  - 本地 IR 控制: ir.md

@@ -1,0 +1,22 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+dist/
+build/
+*.egg-info/
+
+# Extracted secrets: device tokens, BLE keys, cached session (never commit)
+.secrets/
+
+# Optional runtime-fetched third-party tools (never vendored)
+.external/
+
+# MkDocs build output
+site/
+
+# OS
+.DS_Store
+
+# Library: resolve from PyPI, do not pin a lock
+uv.lock

@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mihome-ctl"
+version = "0.1.0"
+description = "免密碼 QR 登入官方小米雲：抽 per-device miIO token / BLE key，並控制雲端 IR 遙控（TV / 冷氣 / 風扇 / DIY）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Da-Wei Lee", email = "daviddwlee84@gmail.com" }]
+keywords = ["xiaomi", "mijia", "miio", "smart-home", "ir", "token", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Home Automation",
+]
+dependencies = [
+    "tyro>=0.9",
+    "requests",
+    "pycryptodome",
+    "charset-normalizer",
+    "Pillow",
+    "colorama",
+    "qrcode",
+    "platformdirs>=4",
+]
+
+[project.optional-dependencies]
+# LAN-local verification of a device token (python-miio); heavy, opt-in.
+verify = ["python-miio"]
+# Expose the operations as MCP tools for Claude / agents.
+mcp = ["mcp>=1.2"]
+# Build the docs site (mkdocs serve / build).
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10", "pymdown-extensions>=10.7"]
+
+[project.scripts]
+mihome-ctl = "mihome_ctl.__main__:main"
+mihome-ctl-mcp = "mihome_ctl.mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/daviddwlee84/mihome-ctl"
+Issues = "https://github.com/daviddwlee84/mihome-ctl/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mihome_ctl"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # long Chinese help strings
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
