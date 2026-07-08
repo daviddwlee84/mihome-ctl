@@ -1,4 +1,4 @@
-"""``extract`` — QR 登入官方小米雲，抽每台裝置 token/本地IP/BLE key → .secrets/。"""
+"""``extract`` — QR login to the official Xiaomi cloud, extract each device's token/local IP/BLE key → .secrets/."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def extract(
     md: Path | None = None,
     relogin: bool = False,
 ) -> int:
-    """QR 登入並抽 token（預設掃 tw sg cn；--server 覆蓋）。"""
+    """QR login and extract tokens (scans tw sg cn by default; --server overrides)."""
     regions = server or DEFAULT_REGIONS
     state = StateDir.resolve()
     out_path = out or state.tokens_json
@@ -30,15 +30,15 @@ def extract(
     rows = extract_tokens(conn, regions)
     if not rows:
         print(
-            f"[mihome-ctl] 這些區沒找到裝置：{regions}。"
-            "改用 --server 指定或留空掃全部（tw sg cn de us ru in i2）。",
+            f"[mihome-ctl] No devices found in these regions: {regions}. "
+            "Use --server to specify, or leave blank to scan all (tw sg cn de us ru in i2).",
             file=sys.stderr,
         )
     write_secret(out_path, json.dumps(rows, ensure_ascii=False, indent=2))
     write_secret(md_path, render_md(rows, reveal=True) + "\n")
-    print(f"[mihome-ctl] {len(rows)} 台裝置 → {out_path} (chmod 600) + {md_path}")
+    print(f"[mihome-ctl] {len(rows)} devices → {out_path} (chmod 600) + {md_path}")
     print()
     print(render_md(rows, reveal=show))
     if not show:
-        print("\n（token 已遮蔽；完整值在上面的 .secrets/ 檔，或加 --show）")
+        print("\n(tokens are masked; full values are in the .secrets/ file above, or add --show)")
     return 0

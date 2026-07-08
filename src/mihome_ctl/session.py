@@ -1,7 +1,8 @@
-"""QR session 快取（``mi-session.json``）與 connector 工廠。
+"""QR session cache (``mi-session.json``) and connector factory.
 
-session schema 固定為 ``{"userId", "ssecurity", "serviceToken"}``，與舊工具相容；
-能沿用就不重掃 QR。``new_connector(force_login=True)`` 強制重登。
+The session schema is fixed as ``{"userId", "ssecurity", "serviceToken"}`` for
+compatibility with older tools; a reusable session avoids re-scanning the QR.
+``new_connector(force_login=True)`` forces a re-login.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def save_session(state: StateDir, conn: QrCodeXiaomiCloudConnector) -> None:
 
 
 def install_terminal_qr(conn: QrCodeXiaomiCloudConnector) -> None:
-    """把登入 QR 直接畫在終端機（python-qrcode）；browser :31415 仍保留為 fallback。"""
+    """Draw the login QR directly in the terminal (python-qrcode); the browser :31415 flow stays as a fallback."""
     try:
         import qrcode
     except ImportError:
@@ -47,7 +48,7 @@ def install_terminal_qr(conn: QrCodeXiaomiCloudConnector) -> None:
     def step2():
         url = getattr(conn, "_login_url", None)
         if url:
-            print("\n[mihome-ctl] 用『米家 App』掃描下方 QR：\n")
+            print("\n[mihome-ctl] Scan the QR below with the Mi Home app:\n")
             qr = qrcode.QRCode(border=1)
             qr.add_data(url)
             qr.make(fit=True)
@@ -60,7 +61,7 @@ def install_terminal_qr(conn: QrCodeXiaomiCloudConnector) -> None:
 def new_connector(
     state: StateDir, force_login: bool = False, host: str = "127.0.0.1"
 ) -> tuple[QrCodeXiaomiCloudConnector, bool]:
-    """回傳 (connector, reused)。能沿用已存 session 就不重掃 QR。"""
+    """Return (connector, reused). Reuse a stored session to avoid re-scanning the QR."""
     conn = QrCodeXiaomiCloudConnector(host=host)
     sess = None if force_login else load_session(state)
     if sess and sess.get("serviceToken") and sess.get("ssecurity") and sess.get("userId"):
@@ -69,8 +70,10 @@ def new_connector(
         conn._serviceToken = sess["serviceToken"]
         return conn, True
     install_terminal_qr(conn)
-    print("[mihome-ctl] 免密碼 QR 登入（掃終端機 QR，或開 http://127.0.0.1:31415）：")
+    print(
+        "[mihome-ctl] Passwordless QR login (scan the terminal QR, or open http://127.0.0.1:31415):"
+    )
     if not conn.login():
-        raise SystemExit("[mihome-ctl] 登入失敗（QR 逾時或被取消）")
+        raise SystemExit("[mihome-ctl] Login failed (QR timed out or was cancelled)")
     save_session(state, conn)
     return conn, False

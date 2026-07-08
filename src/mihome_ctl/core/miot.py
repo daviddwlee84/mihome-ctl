@@ -1,15 +1,15 @@
-"""MIoT-spec 小工具：冷氣模式對照、回應成功判定。"""
+"""MIoT-spec helpers: air-conditioner mode mapping, response success check."""
 
 from __future__ import annotations
 
 from typing import Any
 
-# ir-mode（siid 2 / piid 1）：auto/cool/dry/heat/fan = 0..4
+# ir-mode (siid 2 / piid 1): auto/cool/dry/heat/fan = 0..4
 AC_MODES: dict[str, int] = {"auto": 0, "cool": 1, "dry": 2, "heat": 3, "fan": 4}
 
 
 def miot_ok(resp: Any) -> bool:
-    """MIoT prop/set / action 回應是否整體成功。"""
+    """Whether a MIoT prop/set / action response succeeded overall."""
     if not isinstance(resp, dict) or resp.get("code") != 0:
         return False
     res = resp.get("result")

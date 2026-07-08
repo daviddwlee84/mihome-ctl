@@ -1,8 +1,10 @@
-"""mihome-ctl — 免密碼 QR 登入官方小米雲，抽 per-device miIO token / BLE key，
-並控制雲端 IR 遙控（經 parent blaster 發射；免本地硬體或 Home Assistant）。
+"""mihome-ctl — password-free QR login to the official Xiaomi cloud, extract
+per-device miIO token / BLE key, and control cloud IR remotes (transmitted via
+the parent blaster; no local hardware or Home Assistant needed).
 
-核心邏輯放在 :mod:`mihome_ctl.core`（UI 無關、回傳結構化資料），
-CLI（Tyro）、MCP server、未來的 TUI 都只是薄呈現層。
+Core logic lives in :mod:`mihome_ctl.core` (UI-agnostic, returns structured
+data); the CLI (Tyro), MCP server, and future TUI are just thin presentation
+layers.
 """
 
 from __future__ import annotations

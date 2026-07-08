@@ -1,4 +1,4 @@
-"""``mihome-ctl`` CLI 進入點：把各 subcommand 函式接上 Tyro。"""
+"""``mihome-ctl`` CLI entry point: wires each subcommand function into Tyro."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def main() -> None:
             "ir-code": ir_code.ir_code,
         },
         prog="mihome-ctl",
-        description="免密碼 QR 登入官方小米雲：抽 per-device token（tw/sg 友善）＋雲端 IR 控制",
+        description="Passwordless QR login to the official Xiaomi cloud: extract per-device tokens (tw/sg friendly) + cloud IR control",
     )
     sys.exit(result if isinstance(result, int) else 0)
 

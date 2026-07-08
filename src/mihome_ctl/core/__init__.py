@@ -1,4 +1,5 @@
-"""UI 無關的核心層：連線、雲端 API、IR 編解碼、操作。
+"""UI-agnostic core layer: connection, cloud API, IR codec, operations.
 
-這一層只做事、回傳結構化資料，不做任何 print/輸入；CLI / MCP / TUI 共用。
+This layer only does work and returns structured data — no print/input at all;
+shared by the CLI / MCP / TUI.
 """

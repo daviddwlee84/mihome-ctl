@@ -1,14 +1,18 @@
-"""狀態/機密目錄解析（state dir）與 chmod-600 寫檔。
+"""State/secrets directory resolution (state dir) and chmod-600 file writes.
 
-裝好的 CLI 沒有原本 repo 的 ``.secrets/``，所以 state dir 用以下優先序解析：
+An installed CLI has no ``.secrets/`` from the original repo, so the state dir is
+resolved in the following priority order:
 
-1. 明確傳入的 ``override``（例如 ``--out`` 的父目錄，或程式呼叫）。
-2. 環境變數 ``MIHOME_CTL_HOME``。
-3. 從 cwd 往上找最近的 ``./.secrets``（讓它在 SmartHome 之類的 repo 內當
-   submodule 跑時，仍寫回同一個 ``.secrets``，沿用既有快取 session）。
-4. 退回 platformdirs 的 user state dir（獨立安裝時）。
+1. An explicit ``override`` (e.g. the parent dir of ``--out``, or a programmatic
+   call).
+2. The ``MIHOME_CTL_HOME`` environment variable.
+3. The nearest ``./.secrets`` found by walking up from the cwd (so that when run
+   as a submodule inside a repo like SmartHome, it still writes back to the same
+   ``.secrets`` and reuses the existing cached session).
+4. Fall back to the platformdirs user state dir (for a standalone install).
 
-機密檔名沿用舊工具（``mi-tokens.json`` 等），以相容既有的 ``.secrets/``。
+Secret filenames follow the old tooling (``mi-tokens.json`` etc.) to stay
+compatible with an existing ``.secrets/``.
 """
 
 from __future__ import annotations
@@ -25,7 +29,7 @@ ENV_HOME = "MIHOME_CTL_HOME"
 
 @dataclass(frozen=True)
 class StateDir:
-    """所有機密/快取檔的根目錄。"""
+    """Root directory for all secret/cache files."""
 
     root: Path
 
@@ -63,7 +67,7 @@ class StateDir:
 
 
 def write_secret(path: str | os.PathLike[str], data: str) -> None:
-    """以 0600 權限原子寫入（覆蓋）。父目錄自動建立。"""
+    """Atomically write (overwriting) with 0600 permissions. The parent dir is created automatically."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

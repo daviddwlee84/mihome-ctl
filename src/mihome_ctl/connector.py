@@ -1,17 +1,19 @@
-"""Xiaomi 官方雲連線器（QR 免密碼登入 + RC4 加密 API）。
+"""Xiaomi official cloud connector (password-free QR login + RC4-encrypted API).
 
-本檔是 PiotrMachowski/Xiaomi-cloud-tokens-extractor 之 ``token_extractor.py``
-的**精簡衍生版**（MIT，見 ``THIRD_PARTY_LICENSES/``）：只保留 QR 登入連線器與
-其加密 API 呼叫，移除上游的 argparse/密碼登入/2FA/captcha/CLI 外殼。
+This file is a **trimmed derivative** of ``token_extractor.py`` from
+PiotrMachowski/Xiaomi-cloud-tokens-extractor (MIT, see ``THIRD_PARTY_LICENSES/``):
+it keeps only the QR login connector and its encrypted API calls, dropping the
+upstream argparse / password login / 2FA / captcha / CLI shell.
 
-保留的公開介面（session 快取與 API 呼叫都依賴這些名稱，勿改）：
-    屬性 ``userId`` / ``_ssecurity`` / ``_serviceToken``
-    方法 ``login()`` / ``login_step_2()``（可被覆寫成終端機 QR）
-         ``get_homes`` / ``get_dev_cnt`` / ``get_devices`` / ``get_beaconkey``
-         ``get_api_url`` / ``execute_api_call_encrypted``
+Public interface preserved here (session caching and API calls depend on these
+names, do not rename):
+    attributes ``userId`` / ``_ssecurity`` / ``_serviceToken``
+    methods ``login()`` / ``login_step_2()`` (may be overridden for a terminal QR)
+            ``get_homes`` / ``get_dev_cnt`` / ``get_devices`` / ``get_beaconkey``
+            ``get_api_url`` / ``execute_api_call_encrypted``
 
-上游 re-sync：對照 token_extractor.py 的 ``XiaomiCloudConnector`` /
-``QrCodeXiaomiCloudConnector`` 兩個 class 即可。
+Upstream re-sync: diff against the two classes ``XiaomiCloudConnector`` /
+``QrCodeXiaomiCloudConnector`` in token_extractor.py.
 """
 
 from __future__ import annotations
@@ -56,7 +58,7 @@ def _msg(value: str = "") -> None:
 
 
 class XiaomiCloudConnector(ABC):
-    """加密 API 基底（RC4 簽名）。登入方式由子類實作。"""
+    """Encrypted API base (RC4-signed). The login method is implemented by subclasses."""
 
     def __init__(self) -> None:
         self._agent = self.generate_agent()
@@ -195,7 +197,7 @@ class XiaomiCloudConnector(ABC):
 
 
 class QrCodeXiaomiCloudConnector(XiaomiCloudConnector):
-    """免密碼 QR 登入：開瀏覽器/終端機掃碼 → long-polling 換 serviceToken。"""
+    """Password-free QR login: scan the code in a browser/terminal → long-polling to exchange for a serviceToken."""
 
     def __init__(self, host: str = "127.0.0.1") -> None:
         super().__init__()
@@ -325,7 +327,7 @@ def present_image_image(
     message_file_saved: str,
     message_manually_open_file: str,
 ) -> None:
-    """把 QR 圖以本機 http server 呈現；失敗則存暫存檔並嘗試開圖。"""
+    """Serve the QR image via a local http server; on failure, save a temp file and try to open the image."""
     try:
         start_image_server(image_content)
         _msg(message_url)

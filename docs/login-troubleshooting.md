@@ -1,62 +1,72 @@
-# 登入疑難排解
+# Login troubleshooting
 
-小米登入是整個流程最容易卡的地方。這頁把實測到的坑、根因、對策一次講清楚，並附上
-**安全驗證**（哪些工具只連官方、密碼怎麼處理）。
+Xiaomi login is the step in the whole flow most likely to get you stuck. This page lays out
+the pitfalls observed in practice, their root causes, and the fixes all in one place, plus a
+**security review** (which tools connect only to the official servers, and how passwords are
+handled).
 
-## `miiocli cloud` 回 `Access denied`（`MiCloudAccessDenied`）
+## `miiocli cloud` returns `Access denied` (`MiCloudAccessDenied`)
 
-`python-miio` 底層是 [`micloud`](https://pypi.org/project/micloud/)（2022 後幾乎停更），
-走帳密 POST 到 `account.xiaomi.com/pass/serviceLoginAuth2`。小米後來在這條 endpoint 對
-非 App client 加了 **captcha ＋ email/phone 2FA**，無人值守的帳密 POST 解不掉，就被擋成
-`Access denied`。Home Assistant 的「Xiaomi Miio」雲端流程撞同一道牆。
+Under the hood `python-miio` uses [`micloud`](https://pypi.org/project/micloud/) (barely
+updated since 2022), which does a username/password POST to
+`account.xiaomi.com/pass/serviceLoginAuth2`. Xiaomi later added **captcha + email/phone 2FA**
+to this endpoint for non-App clients, and an unattended credential POST can't get past it, so
+it gets blocked as `Access denied`. Home Assistant's "Xiaomi Miio" cloud flow hits the same wall.
 
-| 現象 | 根因 | 對策 |
+| Symptom | Root cause | Fix |
 |---|---|---|
-| `miiocli cloud` 回 `Access denied` | 密碼流被 captcha/2FA 攔截 | 改走 QR（`mihome-ctl`） |
-| HA Xiaomi Miio 雲端登入失敗 | 繼承同一道牆 | 同上，或 `mihome-ctl` 抽 token 後手填 |
-| 帳密正確也被擋 | **網路層**：Cloudflare DNS、AdGuard/PiHole、路由器地區限制 | 換非 Cloudflare DNS、關廣告過濾、別擋 `api.io.mi.com` |
-| 撞到 2FA 上限 | 每區每天約 3–5 封驗證信（記得翻垃圾信匣） | 等，或改 QR（不受此限） |
+| `miiocli cloud` returns `Access denied` | Password flow blocked by captcha/2FA | Switch to QR (`mihome-ctl`) |
+| HA Xiaomi Miio cloud login fails | Inherits the same wall | Same as above, or extract the token with `mihome-ctl` and fill it in manually |
+| Correct credentials still blocked | **Network layer**: Cloudflare DNS, AdGuard/PiHole, router region restrictions | Switch to a non-Cloudflare DNS, disable ad filtering, don't block `api.io.mi.com` |
+| Hitting the 2FA limit | About 3–5 verification emails per region per day (remember to check spam) | Wait, or switch to QR (not subject to this limit) |
 
-!!! note "這不是後門，是流程無法 headless 自動化"
-    已驗證 `micloud` 與 extractor 只連小米官方網域，且密碼是先做 **unsalted MD5（大寫
-    hex）** 雜湊後才走 TLS 上傳，**明碼密碼從不出網卡**。全新登入解不掉 captcha/2FA 是
-    結構性限制，不是工具藏了 backdoor。
+!!! note "This isn't a backdoor — the flow just can't be automated headlessly"
+    It has been verified that `micloud` and the extractor connect only to Xiaomi's official
+    domains, and that the password is hashed with **unsalted MD5 (uppercase hex)** before being
+    uploaded over TLS — **the plaintext password never leaves the network card**. A fresh login
+    not being able to solve captcha/2FA is a structural limitation, not a tool hiding a backdoor.
 
-## region 陷阱：`miiocli` 的 locale 沒有 `tw`
+## Region trap: `miiocli`'s locale list has no `tw`
 
-台灣帳號**不是**中國帳號，`cn` 一定抓不到。小米把帳號＋裝置綁在 Xiaomi Home App 配對
-當下選的區，走 `{region}.api.io.mi.com`。
+A Taiwan account is **not** a China account, and `cn` will never find it. Xiaomi binds the
+account + devices to the region chosen at the moment of pairing in the Xiaomi Home App, served
+via `{region}.api.io.mi.com`.
 
-!!! danger "python-miio 的 AVAILABLE_LOCALES 沒有 tw"
-    `python-miio` 內建 locale 只有 `cn, de, i2, ru, sg, us`（＋`all`）——**沒有 `tw`**。
-    所以 `miiocli cloud`、`micloud`、HA Xiaomi Miio 雲端流程會**默默漏掉**台灣帳號的裝置，
-    清單看起來是空的。
+!!! danger "python-miio's AVAILABLE_LOCALES has no tw"
+    `python-miio`'s built-in locales are only `cn, de, i2, ru, sg, us` (plus `all`) — **no `tw`**.
+    So `miiocli cloud`, `micloud`, and HA's Xiaomi Miio cloud flow will **silently miss** the
+    devices on a Taiwan account, and the list looks empty.
 
-| 工具 | 支援 region | 對台灣帳號 |
+| Tool | Supported regions | For a Taiwan account |
 |---|---|---|
-| python-miio / micloud | cn, de, i2, ru, sg, us | ❌ 無 tw |
+| python-miio / micloud | cn, de, i2, ru, sg, us | ❌ no tw |
 | `mihome-ctl` / Xiaomi-cloud-tokens-extractor | cn, de, us, ru, **tw**, **sg**, in, i2 | ✅ |
 
-實務：`mihome-ctl` 預設掃 `tw sg cn`。很多台灣／東南亞使用者的裝置其實在 **`sg`**（配對
-時把 App 區域設成新加坡）。**「裝置清單是空的」最常見的原因是選錯區，不是帳密錯。**
+In practice: `mihome-ctl` scans `tw sg cn` by default. Many Taiwan / Southeast Asia users
+actually have their devices in **`sg`** (they set the App region to Singapore during pairing).
+**The most common reason for "the device list is empty" is picking the wrong region, not wrong
+credentials.**
 
-## 安全驗證：哪些只連官方、密碼怎麼處理
+## Security review: which tools connect only to the official servers, and how passwords are handled
 
-| 工具 | 只連小米官方？ | 密碼處理 | 給 token？ |
+| Tool | Official Xiaomi only? | Password handling | Provides token? |
 |---|---|---|---|
-| `mihome-ctl` / extractor | ✅ `account.xiaomi.com` + `{region}.api.io.mi.com` | QR 免密 | ✅ |
-| `miiocli cloud` / micloud | ✅ 官方 | ⚠️ prompt 沒遮蔽（明碼回顯）＋MD5 後送 | ✅ |
-| **`mijiaAPI` / `miot-mcp`** | ❌ **裝置流走第三方 `api.mijia.tech`** | QR 免密（但 token 走第三方） | ❌ |
-| `miio-extract-tokens` | ✅ 零連網（離線） | 免 | ✅ |
+| `mihome-ctl` / extractor | ✅ `account.xiaomi.com` + `{region}.api.io.mi.com` | QR, password-free | ✅ |
+| `miiocli cloud` / micloud | ✅ official | ⚠️ prompt not masked (plaintext echo) + sent after MD5 | ✅ |
+| **`mijiaAPI` / `miot-mcp`** | ❌ **device flow goes through the third-party `api.mijia.tech`** | QR, password-free (but the token goes through a third party) | ❌ |
+| `miio-extract-tokens` | ✅ zero network (offline) | none | ✅ |
 
-!!! danger "mijiaAPI / miot-mcp 走第三方 proxy"
-    `mijiaAPI`（`apis.py` 寫死 `api_base_url = https://api.mijia.tech/app`）把你的
-    `serviceToken`/`ssecurity` 和每條裝置指令送到 **`api.mijia.tech`——非小米官方（作者
-    自架）**。等於一個受信任的 MITM：proxy 端能記錄、重放、竄改你所有裝置資料與控制指令。
-    純雲端控制且你信任它才用；要隱私／要 token 請走 `mihome-ctl`（只連官方）。
+!!! danger "mijiaAPI / miot-mcp go through a third-party proxy"
+    `mijiaAPI` (`apis.py` hardcodes `api_base_url = https://api.mijia.tech/app`) sends your
+    `serviceToken`/`ssecurity` and every device command to **`api.mijia.tech` — not Xiaomi
+    official (self-hosted by the author)**. That is effectively a trusted MITM: the proxy side can
+    log, replay, and tamper with all your device data and control commands. Use it only for pure
+    cloud control and only if you trust it; if you want privacy / want the token, use `mihome-ctl`
+    (official-only).
 
-## QR 免密碼但不等於零互動
+## QR is password-free but not zero-interaction
 
-QR 登入把授權交給手機 App，繞過 `serviceLoginAuth2` 的 captcha＋email-2FA，也不受每日
-2FA 額度限制。但手機端偶爾仍會要求 SMS/OTP 確認——是「script 裡不打密碼」，不是「完全
-不用動手」。
+QR login hands authorization to the phone App, bypassing the captcha + email-2FA of
+`serviceLoginAuth2`, and is not subject to the daily 2FA quota. But the phone side may still
+occasionally ask for an SMS/OTP confirmation — it's "you don't type a password in the script,"
+not "you never touch anything."

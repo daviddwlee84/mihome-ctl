@@ -1,6 +1,6 @@
-"""雲端 API 封裝：登入後的裝置/家庭列舉、IR controller 端點、回應解析。
+"""Cloud API wrappers: post-login device/home enumeration, IR controller endpoints, response parsing.
 
-全部接受一個登入好的 connector，回傳原始 dict/list（不 print）。
+All take a logged-in connector and return raw dict/list (no print).
 """
 
 from __future__ import annotations
@@ -10,14 +10,14 @@ from typing import Any
 
 
 def api(conn, country: str, path: str, payload: dict) -> Any:
-    """對某區呼叫一個加密 API 端點（如 ``/v2/irdevice/controller/keys``）。"""
+    """Call one encrypted API endpoint for a region (e.g. ``/v2/irdevice/controller/keys``)."""
     url = conn.get_api_url(country) + path
     params = {"data": json.dumps(payload, separators=(",", ":"))}
     return conn.execute_api_call_encrypted(url, params)
 
 
 def _homes(conn, country: str) -> list[tuple]:
-    """回傳 (home_id, owner)：自家 home + 被分享的 share_family。"""
+    """Return (home_id, owner): own homes plus shared share_family."""
     homes: list[tuple] = []
     h = conn.get_homes(country)
     if h and h.get("result"):
@@ -31,7 +31,7 @@ def _homes(conn, country: str) -> list[tuple]:
 
 
 def collect(conn, regions: list[str]) -> list[dict]:
-    """逐區抓 home → device_info，跨區以 did 去重，回傳 token 列表（dict）。"""
+    """Fetch home → device_info per region, dedupe across regions by did, return a token list (dicts)."""
     devices: dict[str, dict] = {}
     for country in regions:
         for home_id, owner in _homes(conn, country):
@@ -50,7 +50,7 @@ def collect(conn, regions: list[str]) -> list[dict]:
                     "token": d.get("token", ""),
                     "mac": d.get("mac", ""),
                 }
-                if "blt" in did:  # BLE 裝置：多抓 beaconkey
+                if "blt" in did:  # BLE device: also fetch beaconkey
                     bk = conn.get_beaconkey(country, did)
                     if bk and bk.get("result"):
                         rec["beaconkey"] = bk["result"].get("beaconkey", "")
@@ -59,7 +59,7 @@ def collect(conn, regions: list[str]) -> list[dict]:
 
 
 def fetch_devices(conn, regions: list[str]) -> dict:
-    """did -> {model,name,region,parent_id}，跨區（供 IR 對照 parent blaster）。"""
+    """did -> {model,name,region,parent_id}, across regions (for matching IR remotes to the parent blaster)."""
     devmap: dict[str, dict] = {}
     for country in regions:
         for home_id, owner in _homes(conn, country):
@@ -77,7 +77,7 @@ def fetch_devices(conn, regions: list[str]) -> dict:
 
 
 def keys_have_code(keys_resp) -> tuple[int, bool]:
-    """(鍵數, 是否有任何 raw code)。回應結構不確定，盡量容錯。"""
+    """(key count, whether any raw code exists). The response shape is uncertain, so stay tolerant."""
     res = (keys_resp or {}).get("result")
     keys = res.get("keys") or res.get("list") or [] if isinstance(res, dict) else (res or [])
     has_code = any(

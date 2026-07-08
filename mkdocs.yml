@@ -1,29 +1,53 @@
 site_name: mihome-ctl
-site_description: 免密碼 QR 登入官方小米雲、抽 per-device token、控制雲端 IR 遙控
+site_description: Passwordless QR login to the official Xiaomi cloud — extract per-device tokens and control cloud IR remotes
+site_url: https://daviddwlee84.github.io/mihome-ctl/
 repo_url: https://github.com/daviddwlee84/mihome-ctl
+repo_name: daviddwlee84/mihome-ctl
+edit_uri: edit/main/docs/
 docs_dir: docs
 
 theme:
   name: material
-  language: zh-TW
+  language: en
   palette:
     - scheme: default
-      toggle: { icon: material/brightness-7, name: 切換深色 }
+      primary: indigo
+      toggle: { icon: material/brightness-7, name: Switch to dark mode }
     - scheme: slate
-      toggle: { icon: material/brightness-4, name: 切換淺色 }
+      primary: indigo
+      toggle: { icon: material/brightness-4, name: Switch to light mode }
   features:
     - content.code.copy
     - navigation.sections
+    - navigation.top
+    - search.suggest
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          default: true
+          name: English
+        - locale: zh-TW
+          name: 繁體中文
+          nav_translations:
+            Home: 首頁
+            Auth & Token: 認證與 Token
+            Login troubleshooting: 登入疑難排解
+            Local IR control: 本地 IR 控制
 
 markdown_extensions:
   - admonition
   - tables
-  - toc
+  - toc:
+      permalink: true
   - pymdownx.details
   - pymdownx.superfences
 
 nav:
-  - 首頁: index.md
-  - 認證與 Token: auth-token.md
-  - 登入疑難排解: login-troubleshooting.md
-  - 本地 IR 控制: ir.md
+  - Home: index.md
+  - Auth & Token: auth-token.md
+  - Login troubleshooting: login-troubleshooting.md
+  - Local IR control: ir.md

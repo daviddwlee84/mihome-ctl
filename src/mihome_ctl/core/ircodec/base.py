@@ -1,8 +1,9 @@
-"""IR 碼庫後端介面。
+"""IR code database backend interface.
 
-一個後端把 IRDB ``matchid`` 解成 ``{按鍵名: {"frequency", "pronto"}}``。
-內建的 :class:`~mihome_ctl.core.ircodec.native.NativeIRCodec` 走純 Python 解碼；
-未來可加「呼叫使用者自行安裝的外部 CLI（如 AGPL 的 ysard，opt-in、不打包）」等後端。
+A backend decodes an IRDB ``matchid`` into ``{key_name: {"frequency", "pronto"}}``.
+The bundled :class:`~mihome_ctl.core.ircodec.native.NativeIRCodec` uses pure-Python
+decoding; future backends could "invoke an external CLI the user installs themselves
+(e.g. the AGPL ysard, opt-in, not bundled)".
 """
 
 from __future__ import annotations
@@ -15,5 +16,5 @@ class IRCodecBackend(Protocol):
     name: str
 
     def decode_matchid(self, matchid: str, country: str = "CN") -> dict:
-        """回傳 ``{按鍵名: {"frequency": int, "pronto": str} | {"error": str}}``。"""
+        """Return ``{key_name: {"frequency": int, "pronto": str} | {"error": str}}``."""
         ...

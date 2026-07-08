@@ -1,7 +1,8 @@
-"""``ir-code`` — IRDB matchid → 每鍵 Pronto（原生解碼，無 AGPL 依賴）。
+"""``ir-code`` — IRDB matchid → per-key Pronto (native decoding, no AGPL dependency).
 
-注意：公開 IRDB 端點目前需 Mi Home app 簽章（未帶簽章回 status:19），故線上以
-matchid 取碼標為實驗性；解碼本身以自製 round-trip 測試驗證（見 tests）。
+Note: the public IRDB endpoint currently requires a Mi Home app signature (returns
+status:19 without one), so fetching codes online by matchid is marked experimental;
+the decoding itself is validated by a homegrown round-trip test (see tests).
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from ..core.ircodec import IRDBError, IRDBGatedError, default_backend
 
 
 def ir_code(matchid: str, country: str = "CN") -> int:
-    """IRDB matchid → 每鍵 Pronto（給 chuangmi.ir.v2 play_pronto）。"""
+    """IRDB matchid → per-key Pronto (for chuangmi.ir.v2 play_pronto)."""
     state = StateDir.resolve()
     backend = default_backend()
     try:
@@ -28,8 +29,8 @@ def ir_code(matchid: str, country: str = "CN") -> int:
     path = state.ir_code_json(matchid)
     write_secret(path, json.dumps(out, ensure_ascii=False, indent=2))
     freq = next((v.get("frequency") for v in out.values() if "frequency" in v), None)
-    print(f"[mihome-ctl] matchid={matchid} freq={freq}Hz，{len(out)} 顆鍵 → {path}")
+    print(f"[mihome-ctl] matchid={matchid} freq={freq}Hz, {len(out)} keys → {path}")
     for btn, v in list(out.items())[:8]:
         print(f"  {btn:18} {str(v.get('pronto', v.get('error', '')))[:52]}…")
-    print("\n重播：chuangmi.ir.v2 → play_pronto('<hex>')（或 HA remote.send_command）。")
+    print("\nReplay: chuangmi.ir.v2 → play_pronto('<hex>') (or HA remote.send_command).")
     return 0

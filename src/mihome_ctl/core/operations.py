@@ -1,5 +1,6 @@
-"""UI 無關的操作層：登入後的每個「動作」在這裡，回傳結構化結果（dataclass/dict），
-**不 print、不讀 argv**。CLI（Tyro）、MCP server、未來 TUI 都呼叫這一層。
+"""UI-agnostic operations layer: every post-login "action" lives here and returns
+structured results (dataclass/dict), **no print, no argv reads**. The CLI (Tyro),
+MCP server, and future TUI all call into this layer.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from .miot import AC_MODES, miot_ok
 
 
 def extract_tokens(conn, regions: list[str]) -> list[dict]:
-    """QR 登入後：抓所有裝置的 token/ip/mac/beaconkey（dict 列表，跨區去重）。"""
+    """After QR login: fetch every device's token/ip/mac/beaconkey (list of dicts, deduped across regions)."""
     return collect(conn, regions)
 
 
@@ -32,27 +33,29 @@ class VerifyResult:
 
 
 def verify_device(dev: dict) -> VerifyResult:
-    """對單一裝置做 LAN 本地驗證（python-miio）。ARP 解即時 IP。"""
+    """Run LAN-local verification for a single device (python-miio). ARP resolves the current IP."""
     model = dev.get("model", "")
     token = dev.get("token")
     if not token:
-        return VerifyResult(False, "", "沒有 token（IR 虛擬遙控/雲端裝置），無法本地驗證", model)
+        return VerifyResult(
+            False, "", "no token (IR virtual remote / cloud device), cannot verify locally", model
+        )
     ip = dev.get("localip") or ""
     live = arp_ip_for(dev.get("mac", ""))
     if live:
         ip = live
     if not ip:
-        return VerifyResult(False, "", "沒有可用 IP（多半不在你目前的 LAN）", model)
+        return VerifyResult(False, "", "no usable IP (most likely not on your current LAN)", model)
     try:
         from miio import Device
     except ModuleNotFoundError as e:
         raise SystemExit(
-            "[mihome-ctl] verify 需要 python-miio：pip install 'mihome-ctl[verify]'"
+            "[mihome-ctl] verify requires python-miio: pip install 'mihome-ctl[verify]'"
         ) from e
     try:
         info = Device(ip, token).info()
-        return VerifyResult(True, ip, "本地可控", info.model, info.firmware_version)
-    except Exception as e:  # noqa: BLE001 - 回報任何本地失敗
+        return VerifyResult(True, ip, "locally controllable", info.model, info.firmware_version)
+    except Exception as e:  # noqa: BLE001 - report any local failure
         return VerifyResult(False, ip, f"{type(e).__name__}: {e}", model)
 
 
@@ -75,7 +78,7 @@ class RemoteRow:
 
 
 def enumerate_ir(conn, regions: list[str]) -> tuple[dict, list[RemoteRow]]:
-    """列出雲端 miir.* 遙控 + parent blaster + DIY/品牌配對。回傳 (dump, rows)。"""
+    """List cloud miir.* remotes + parent blaster + DIY/brand pairing. Returns (dump, rows)."""
     devmap = fetch_devices(conn, regions)
     miirs = {did: v for did, v in devmap.items() if v["model"].startswith("miir")}
     dump: dict[str, dict] = {}
@@ -93,11 +96,11 @@ def enumerate_ir(conn, regions: list[str]) -> tuple[dict, list[RemoteRow]]:
             cid = 0
         brand = info_res.get("brand_id")
         if cid > 0:
-            kind = "品牌配對"
+            kind = "brand-paired"
         elif info_res.get("controller_id") is not None:
-            kind = "DIY(自學)"
+            kind = "DIY (self-learned)"
         else:
-            kind = "未知"
+            kind = "unknown"
         dump[did] = {
             "model": v["model"],
             "name": v["name"],
@@ -134,7 +137,7 @@ def enumerate_ir(conn, regions: list[str]) -> tuple[dict, list[RemoteRow]]:
 
 
 def find_remote(ir: dict, query: str) -> tuple[str, dict] | None:
-    """以子字串（名稱/型號/did）在已存的 ir dump 裡找一個遙控。"""
+    """Find a remote in the saved ir dump by substring (name/model/did)."""
     q = query.lower()
     for did, r in ir.items():
         if q in (str(r.get("name", "")) + r.get("model", "") + did).lower():
@@ -170,7 +173,7 @@ class SendResult:
 
 
 def send_key(conn, did: str, r: dict, k: dict, repeat: int = 1) -> SendResult:
-    """雲端觸發某遙控的某鍵（經 parent blaster 發射）；repeat 次。"""
+    """Trigger a remote's key via the cloud (transmitted by the parent blaster); repeat times."""
     cid = int(r.get("controller_id") or 0)
     country = r.get("region", "cn")
     payload = {"did": did, "key_id": int(k["id"])}
@@ -196,7 +199,7 @@ def send_key(conn, did: str, r: dict, k: dict, repeat: int = 1) -> SendResult:
 
 
 def ac_remotes(ir: dict, query: str | None) -> list[tuple[str, dict]]:
-    """挑冷氣遙控：有 query 用子字串；否則所有 miir.aircondition.*。"""
+    """Pick air-conditioner remotes: use the substring if a query is given; otherwise all miir.aircondition.*."""
     if query:
         q = query.lower()
         return [
@@ -254,7 +257,7 @@ def ac_control(
     turn_on: bool = False,
     turn_off: bool = False,
 ) -> list[AcResult]:
-    """一站式冷氣控制（MCP/TUI 用）：關機 / 設溫度模式 + 送出。回傳各步驟結果。"""
+    """One-stop air-conditioner control (for MCP/TUI): turn off / set temperature & mode + send. Returns per-step results."""
     if turn_off:
         return [ac_off(conn, did, country)]
     mode_val = AC_MODES.get(mode.lower()) if mode else None

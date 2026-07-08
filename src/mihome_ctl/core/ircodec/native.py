@@ -1,15 +1,18 @@
-"""原生（clean-room）IRDB 解碼：AES-128-ECB + gzip + 微秒時序 → Pronto。
+"""Native (clean-room) IRDB decoding: AES-128-ECB + gzip + microsecond timings → Pronto.
 
-實作依據**公開協議**（本 repo ``docs/control/ir.md``、官方 miot-plugin-sdk 的
-ircontroller.js 等），不含任何 AGPL 程式碼、不 vendor、不在執行期下載 AGPL 工具。
+The implementation follows the **public protocol** (this repo's ``docs/control/ir.md``,
+the official miot-plugin-sdk's ircontroller.js, etc.); it contains no AGPL code,
+vendors nothing, and downloads no AGPL tool at runtime.
 
-小米 IR 碼庫的每顆鍵是：``base64( AES-ECB( gzip( 微秒時序文字 ) ) )``，
-金鑰為公開常數 ``fd7e915003168929c1a9b0ec32a60788``（16-byte，AES-128）。
+Each key in the Xiaomi IR code database is ``base64( AES-ECB( gzip( microsecond-timing text ) ) )``,
+with the key being the public constant ``fd7e915003168929c1a9b0ec32a60788`` (16-byte, AES-128).
 
-限制（誠實說明）：公開的 ``{region}-urc.io.mi.com/controller/code/1`` 端點目前需
-Mi Home app 簽章（未帶簽章回 ``status:19``），故「線上以 matchid 取碼」這條路徑
-無法在無簽章下驗證，標為實驗性。解碼本身（``decode_code``）以自製 round-trip
-測試驗證（見 tests）。要離線解碼可直接餵 raw 加密碼給 ``decode_code``。
+Limitations (stated honestly): the public ``{region}-urc.io.mi.com/controller/code/1``
+endpoint currently requires a Mi Home app signature (returns ``status:19`` without one),
+so the "fetch a code online by matchid" path cannot be verified without a signature and
+is marked experimental. The decoding itself (``decode_code``) is validated by an in-house
+round-trip test (see tests). For offline decoding, feed a raw encrypted code directly to
+``decode_code``.
 """
 
 from __future__ import annotations
@@ -28,18 +31,18 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     from Cryptodome.Cipher import AES
 
-# 公開協議常數（亦見 docs/control/ir.md）。
+# Public protocol constants (see also docs/control/ir.md).
 _AES_KEY = bytes.fromhex("fd7e915003168929c1a9b0ec32a60788")
 _URC_URL = "https://{region}-urc.io.mi.com/controller/code/1"
 _UA = "MISmartHome/6.4.9"
 
 
 class IRDBError(RuntimeError):
-    """IRDB 取碼/解碼失敗。"""
+    """IRDB code fetch/decode failure."""
 
 
 class IRDBGatedError(IRDBError):
-    """公開 IRDB 端點需 app 簽章（回 status:19 之類），無法匿名取碼。"""
+    """The public IRDB endpoint requires an app signature (returns something like status:19); anonymous code fetch is impossible."""
 
 
 def _aes_decrypt(data: bytes) -> bytes:
@@ -52,14 +55,14 @@ def _aes_encrypt(data: bytes) -> bytes:
 
 
 def _gunzip(data: bytes) -> bytes:
-    """解 gzip；容忍 AES 補位造成的尾端多餘位元組（zlib 讀完一個 member 即停）。"""
+    """Gunzip; tolerate trailing bytes from AES padding (zlib stops after reading one member)."""
     d = zlib.decompressobj(31)
     out = d.decompress(data)
     return out + d.flush()
 
 
 def decode_code(enc: str) -> list[int]:
-    """單顆鍵的加密碼 → 微秒 ON/OFF 時序 list。"""
+    """A single key's encrypted code → a list of microsecond ON/OFF timings."""
     raw = base64.b64decode(enc)
     payload = _gunzip(_aes_decrypt(raw))
     text = payload.decode("ascii", "ignore")
@@ -67,14 +70,14 @@ def decode_code(enc: str) -> list[int]:
 
 
 def encode_code(timings: list[int]) -> str:
-    """微秒時序 → 加密碼（``decode_code`` 的逆運算；供測試 round-trip）。"""
+    """Microsecond timings → encrypted code (inverse of ``decode_code``; for round-trip tests)."""
     text = " ".join(str(int(t)) for t in timings).encode("ascii")
     gz = gzip.compress(text, mtime=0)
     return base64.b64encode(_aes_encrypt(gz)).decode()
 
 
 def fetch_matchid(matchid: str, country: str = "CN") -> dict:
-    """打公開 IRDB 端點取某 matchid 的碼；被簽章擋下時 raise :class:`IRDBGatedError`。"""
+    """Hit the public IRDB endpoint to fetch a matchid's code; raise :class:`IRDBGatedError` when blocked by the signature gate."""
     url = _URC_URL.format(region=country.lower())
     try:
         r = requests.get(
@@ -85,22 +88,23 @@ def fetch_matchid(matchid: str, country: str = "CN") -> dict:
         )
         data = r.json()
     except Exception as e:  # noqa: BLE001
-        raise IRDBError(f"IRDB 取碼失敗：{type(e).__name__}: {e}") from e
+        raise IRDBError(f"IRDB code fetch failed: {type(e).__name__}: {e}") from e
     d = data.get("data") if isinstance(data, dict) else None
     if not isinstance(d, dict) or not d.get("key"):
         status = data.get("status") if isinstance(data, dict) else None
         if status not in (0, None):
             raise IRDBGatedError(
-                f"IRDB 回應 status={status}：公開 {url} 端點目前需 Mi Home app 簽章，"
-                "無法匿名以 matchid 取碼。可改餵 raw 加密碼給 decode_code，"
-                "或用外部後端（見 README）。"
+                f"IRDB responded status={status}: the public {url} endpoint currently requires a "
+                "Mi Home app signature, so a code cannot be fetched anonymously by matchid. "
+                "Feed a raw encrypted code to decode_code instead, "
+                "or use an external backend (see README)."
             )
-        raise IRDBError(f"IRDB 查無 matchid={matchid}")
+        raise IRDBError(f"IRDB found no matchid={matchid}")
     return d
 
 
 def decode_matchid(matchid: str, country: str = "CN") -> dict:
-    """matchid → ``{按鍵名: {"frequency", "pronto"} | {"error"}}``。"""
+    """matchid → ``{key_name: {"frequency", "pronto"} | {"error"}}``."""
     d = fetch_matchid(matchid, country)
     freq = int(d.get("frequency") or 38000)
     out: dict[str, dict] = {}
@@ -113,7 +117,7 @@ def decode_matchid(matchid: str, country: str = "CN") -> dict:
 
 
 class NativeIRCodec:
-    """預設後端：純 Python 解碼（無 AGPL 依賴）。"""
+    """Default backend: pure-Python decoding (no AGPL dependency)."""
 
     name = "native"
 

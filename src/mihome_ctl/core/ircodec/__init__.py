@@ -1,7 +1,8 @@
-"""IR 碼庫（IRDB）編解碼後端。
+"""IR code database (IRDB) codec backend.
 
-``NativeIRCodec`` 是預設、且是套件唯一內建的後端（純 pycryptodome，MIT）。
-未來可另加「外部 CLI adapter」等後端——只要符合 :class:`IRCodecBackend`。
+``NativeIRCodec`` is the default and the only backend bundled with the package
+(pure pycryptodome, MIT). Other backends (e.g. an "external CLI adapter") may be
+added later — as long as they conform to :class:`IRCodecBackend`.
 """
 
 from __future__ import annotations

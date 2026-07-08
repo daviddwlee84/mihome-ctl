@@ -1,10 +1,10 @@
-"""純呈現：把裝置列表渲染成 Markdown 表格（CLI / devices.md 用）。"""
+"""Pure presentation: render the device list as a Markdown table (for the CLI / devices.md)."""
 
 from __future__ import annotations
 
 
 def render_md(rows: list[dict], reveal: bool) -> str:
-    """裝置列表 → Markdown 表格。``reveal=False`` 時遮蔽 token。"""
+    """Device list → Markdown table. Masks the token when ``reveal=False``."""
 
     def tok(v: str) -> str:
         if not v:
@@ -12,7 +12,7 @@ def render_md(rows: list[dict], reveal: bool) -> str:
         return v if reveal else "…redacted…"
 
     lines = [
-        "| 裝置 | 型號 (model) | 區 | 本地 IP | token | MAC |",
+        "| Device | Model | Region | Local IP | token | MAC |",
         "|---|---|---|---|---|---|",
     ]
     for r in rows:
