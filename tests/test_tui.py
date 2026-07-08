@@ -64,6 +64,7 @@ def test_device_get_cloud(monkeypatch):
 
     monkeypatch.setattr(ops, "miot_get", fake_get)
     monkeypatch.setattr(tui_app, "connector_from_session", lambda state: object())
+    monkeypatch.setattr(tui_app.miotspec, "describe", lambda state, model: None)
 
     async def scenario():
         app = tui_app.MihomeApp(ir=FAKE_IR, devices=FAKE_DEVICES)
@@ -81,6 +82,44 @@ def test_device_get_cloud(monkeypatch):
 
     asyncio.run(scenario())
     assert seen == {"did": "did.plug", "country": "tw", "siid": 2, "piid": 1}
+
+
+def test_device_spec_picker(monkeypatch):
+    from mihome_ctl.core.miotspec import DeviceSpec, SpecProp
+
+    fake = DeviceSpec(
+        model="x.plug",
+        urn="urn:x",
+        props=[
+            SpecProp(
+                siid=2,
+                piid=1,
+                service="Switch",
+                name="Switch Status",
+                format="bool",
+                access=["read", "write"],
+            )
+        ],
+        actions=[],
+    )
+    monkeypatch.setattr(tui_app.miotspec, "describe", lambda state, model: fake)
+
+    async def scenario():
+        app = tui_app.MihomeApp(ir=FAKE_IR, devices=FAKE_DEVICES)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.query_one(tui_app.TabbedContent).active = "tab-dev"
+            await pilot.pause()
+            app.query_one("#devices", tui_app.DataTable).move_cursor(row=0)
+            await pilot.pause()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert app.query_one("#dev-props", tui_app.OptionList).option_count == 1
+            app._pick_spec_option("p:2:1")
+            assert app.query_one("#dev-siid", tui_app.Input).value == "2"
+            assert app.query_one("#dev-piid", tui_app.Input).value == "1"
+
+    asyncio.run(scenario())
 
 
 def test_select_remote_populates_keys():

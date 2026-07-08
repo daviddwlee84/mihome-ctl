@@ -36,6 +36,7 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 
 from ..config import StateDir
+from ..core import miotspec
 from ..core import operations as ops
 from ..core.miot import AC_MODES, coerce_value
 from ..session import connector_from_session
@@ -52,7 +53,8 @@ class MihomeApp(App):
     CSS = """
     #remotes { width: 45%; }
     #keys { width: 55%; }
-    #devices { height: 55%; }
+    #devices { height: 35%; }
+    #dev-props { height: 26%; }
     #dev-form Input { width: 14; }
     #log { height: 25%; border-top: solid $accent; }
     """
@@ -105,6 +107,7 @@ class MihomeApp(App):
             with TabPane("Devices", id="tab-dev"):
                 yield DataTable(id="devices", cursor_type="row", zebra_stripes=True)
                 yield Label("(select a device)", id="dev-name")
+                yield OptionList(id="dev-props")
                 with Horizontal(id="dev-form"):
                     yield Input(placeholder="siid", id="dev-siid")
                     yield Input(placeholder="piid", id="dev-piid")
@@ -230,6 +233,12 @@ class MihomeApp(App):
                 self.query_one("#dev-name", Label).update(
                     f"{dev.get('name', '')}  ({dev.get('model', '')})  region={dev.get('region', '')}"
                 )
+                if self.query_one(TabbedContent).active == "tab-dev":
+                    self._resolve_spec(dev)
+
+    def on_tabbed_content_tab_activated(self, event) -> None:
+        if self.query_one(TabbedContent).active == "tab-dev" and self._cur_device is not None:
+            self._resolve_spec(self._cur_device)
 
     def on_data_table_row_selected(self, message: DataTable.RowSelected) -> None:
         if message.data_table.id == "remotes":
@@ -237,6 +246,9 @@ class MihomeApp(App):
 
     # ------------------------------------------------------------------ remotes → send key
     def on_option_list_option_selected(self, message: OptionList.OptionSelected) -> None:
+        if message.option_list.id == "dev-props":
+            self._pick_spec_option(message.option_id)
+            return
         if self._cur_remote is None:
             return
         did, r = self._cur_remote
@@ -428,6 +440,54 @@ class MihomeApp(App):
         self.call_from_thread(
             self._log, f"{tag} {dev.get('name', '')} siid={siid} aiid={aiid} in={args} {detail}"
         )
+
+    # ------------------------------------------------------------------ device MIoT-spec picker
+    @work(thread=True, group="spec", exclusive=True)
+    def _resolve_spec(self, dev: dict) -> None:
+        model = dev.get("model", "")
+        try:
+            d = miotspec.describe(self.state, model)
+        except Exception as e:  # noqa: BLE001
+            self.call_from_thread(self._fill_props, None, model, f"{type(e).__name__}: {e}")
+            return
+        self.call_from_thread(self._fill_props, d, model, None)
+
+    def _fill_props(self, d, model: str, err) -> None:
+        ol = self.query_one("#dev-props", OptionList)
+        ol.clear_options()
+        if err:
+            ol.add_option(Option(f"spec error: {err}", disabled=True))
+            return
+        if d is None:
+            ol.add_option(Option(f"no MIoT spec for {model}", disabled=True))
+            return
+        for p in d.props:
+            c = miotspec.prop_constraint(p)
+            label = (
+                f"[P] {p.service} · {p.name}  s{p.siid} p{p.piid} "
+                f"{p.format} {miotspec.access_flags(p)}" + (f"  {c}" if c else "")
+            )
+            ol.add_option(Option(label, id=f"p:{p.siid}:{p.piid}"))
+        for a in d.actions:
+            ol.add_option(
+                Option(
+                    f"[A] {a.service} · {a.name}  s{a.siid} a{a.aiid}", id=f"a:{a.siid}:{a.aiid}"
+                )
+            )
+
+    def _pick_spec_option(self, option_id: str | None) -> None:
+        if not option_id or option_id.count(":") != 2:
+            return
+        kind, siid, iid = option_id.split(":")
+        self.query_one("#dev-siid", Input).value = siid
+        if kind == "p":
+            self.query_one("#dev-piid", Input).value = iid
+            self.query_one("#dev-aiid", Input).value = ""
+            self._log(f"filled siid={siid} piid={iid} — press Get or Set")
+        else:
+            self.query_one("#dev-aiid", Input).value = iid
+            self.query_one("#dev-piid", Input).value = ""
+            self._log(f"filled siid={siid} aiid={iid} — press Call")
 
     def _log(self, msg: str) -> None:
         self.query_one("#log", RichLog).write(msg)

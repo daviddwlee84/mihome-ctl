@@ -76,6 +76,7 @@ mihome-ctl ir-code --matchid xm_1_199         # IRDB matchid → per-key Pronto 
 
 # control any (non-IR) device by MIoT siid/piid — cloud by default, --local for LAN
 mihome-ctl devices                                             # pretty table of devices + did (--md for markdown)
+mihome-ctl spec --did <DID>                                    # named properties/actions (from miot-spec.org) — so you know which siid/piid
 mihome-ctl prop-get --did <DID> --siid 2 --piid 1              # read a property
 mihome-ctl prop-set --did <DID> --siid 2 --piid 1 --value true # write a property
 mihome-ctl action   --did <DID> --siid 2 --aiid 1 --args '[]'  # call an action

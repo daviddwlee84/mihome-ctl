@@ -12,6 +12,7 @@ import json
 
 from .config import StateDir
 from .connector import QrCodeXiaomiCloudConnector
+from .core import miotspec
 from .core import operations as ops
 from .core.miot import AC_MODES, coerce_value
 from .session import connector_from_session
@@ -184,6 +185,39 @@ def build_server():
         r = ops.miot_call(conn, did, dev.get("region", "cn"), siid, aiid, a)
         return f"{'✅' if r.ok else '❌'} action siid={siid} aiid={aiid} in={a}" + (
             "" if r.ok else f" {r.resp}"
+        )
+
+    @mcp.tool()
+    def device_spec(did: str) -> str:
+        """List a device's MIoT properties/actions by name (siid/piid/aiid) from miot-spec.org."""
+        state = StateDir.resolve()
+        dev = ops.find_device(_load_tokens(state), did)
+        if dev is None:
+            return f"did={did} not found."
+        d = miotspec.describe(state, dev.get("model", ""))
+        if d is None:
+            return f"no public MIoT spec for model {dev.get('model', '')}"
+        return json.dumps(
+            {
+                "model": d.model,
+                "properties": [
+                    {
+                        "siid": p.siid,
+                        "piid": p.piid,
+                        "name": f"{p.service} {p.name}",
+                        "format": p.format,
+                        "access": p.access,
+                        "range": p.value_range,
+                        "list": p.value_list,
+                    }
+                    for p in d.props
+                ],
+                "actions": [
+                    {"siid": a.siid, "aiid": a.aiid, "name": f"{a.service} {a.name}", "in": a.in_}
+                    for a in d.actions
+                ],
+            },
+            ensure_ascii=False,
         )
 
     return mcp

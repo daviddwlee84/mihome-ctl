@@ -75,6 +75,19 @@ class StateDir:
     def ir_code_json(self, matchid: str) -> Path:
         return self.root / f"ir-code-{matchid}.json"
 
+    # --- MIoT-spec cache (public data, not secret) ---
+    @property
+    def spec_dir(self) -> Path:
+        return self.root / "spec"
+
+    @property
+    def models_json(self) -> Path:
+        return self.root / "miot-models.json"
+
+    def spec_json(self, urn: str) -> Path:
+        safe = urn.replace(":", "_").replace("/", "_")
+        return self.spec_dir / f"{safe}.json"
+
 
 def write_secret(path: str | os.PathLike[str], data: str) -> None:
     """Atomically write (overwriting) with 0600 permissions. The parent dir is created automatically."""

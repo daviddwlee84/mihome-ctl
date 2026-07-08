@@ -19,6 +19,7 @@ from .commands import (
     prop_set,
     setup,
     show,
+    spec,
     tui,
     verify,
 )
@@ -44,6 +45,7 @@ def main() -> None:
             "prop-set": prop_set.prop_set,
             "action": action.action,
             "miio": miio.miio,
+            "spec": spec.spec,
             "setup": setup.setup,
             "tui": tui.tui,
         },
