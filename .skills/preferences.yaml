@@ -8,3 +8,5 @@ mkdocs_site_bootstrap:
   auto_deploy: true
   default_lang: en
   existing_docs_decision: wrap
+  pages_deployed: true
+  pages_enabled_at: "2026-07-08"

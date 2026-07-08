@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mihome-ctl"
-version = "0.1.0"
+version = "0.2.0"
 description = "Passwordless QR login to the official Xiaomi cloud: extract per-device miIO tokens / BLE keys and control cloud IR remotes (TV / A-C / fan / DIY)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,6 +52,11 @@ Issues = "https://github.com/daviddwlee84/mihome-ctl/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mihome_ctl"]
+
+# Ship the agent skill inside the wheel so `mihome-ctl setup` can install it
+# offline (no Node). The repo-top-level skills/ copy stays for `npx skills`.
+[tool.hatch.build.targets.wheel.force-include]
+"skills/mihome-ir/SKILL.md" = "mihome_ctl/_skill/SKILL.md"
 
 [tool.ruff]
 target-version = "py310"

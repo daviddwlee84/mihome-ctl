@@ -32,6 +32,30 @@ uv tool install 'mihome-ctl[verify]'   # verify: LAN token check (python-miio)
 uv tool install 'mihome-ctl[mcp]'      # MCP server (for Claude / agents)
 ```
 
+## Claude integration — skill + MCP (one step)
+
+After installing, wire up the agent skill and MCP server in one command:
+
+```bash
+mihome-ctl setup            # install the `mihome-ir` skill (~/.claude/skills) + register the MCP
+mihome-ctl setup --project  # install into ./.claude instead of the user dir
+mihome-ctl setup --npx      # install the skill via `npx skills add` (vercel-labs/skills) instead
+mihome-ctl setup --dry-run  # preview without writing anything
+```
+
+`setup` ships the skill inside the wheel, so the default path needs **no Node** —
+it copies `SKILL.md` locally and runs `claude mcp add mihome-ctl -- mihome-ctl-mcp`
+(or prints the config if the `claude` CLI isn't found). So the whole onboarding is:
+
+```bash
+uv tool install 'mihome-ctl[mcp]' && mihome-ctl setup
+```
+
+- **Agent Skill** `mihome-ir` — lets Claude control the TV / A-C / fan by voice-style
+  requests. Also installable directly: `npx skills add daviddwlee84/mihome-ctl --skill mihome-ir`.
+- **MCP server** `mihome-ctl-mcp` — exposes `list_remotes` / `list_keys` / `ir_send` /
+  `ir_ac` as MCP tools (reuses the QR session cached by `mihome-ctl ir`).
+
 ## Usage
 
 ```bash
@@ -97,6 +121,13 @@ uv sync --extra verify --extra mcp
 uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
 ```
+
+## Releasing
+
+Publishing is automated: cut a **GitHub Release** tagged `vX.Y.Z` (matching the
+`pyproject.toml` version) and `.github/workflows/release.yml` builds and uploads
+to PyPI via [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC —
+no stored token). One-time PyPI setup instructions are in the workflow header.
 
 ## License
 

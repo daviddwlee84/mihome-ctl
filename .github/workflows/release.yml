@@ -1,0 +1,45 @@
+name: release
+
+# Publish to PyPI when a GitHub Release is published (tag it vX.Y.Z), or manually.
+# Uses PyPI Trusted Publishing (OIDC) — no API token stored in GitHub.
+#
+# ONE-TIME PyPI SETUP (https://pypi.org/manage/project/mihome-ctl/settings/publishing/):
+#   Add a "Trusted Publisher":
+#     Owner:            daviddwlee84
+#     Repository name:  mihome-ctl
+#     Workflow name:    release.yml
+#     Environment name: pypi
+#
+# Token fallback instead of OIDC: add a `PYPI_API_TOKEN` repo secret and set
+#   `with: { password: ${{ secrets.PYPI_API_TOKEN }} }` on the publish step below.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # OIDC for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
