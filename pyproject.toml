@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mihome-ctl"
-version = "0.5.0"
+version = "0.5.1"
 description = "Passwordless QR login to the official Xiaomi cloud: extract per-device miIO tokens / BLE keys and control cloud IR remotes (TV / A-C / fan / DIY)"
 readme = "README.md"
 requires-python = ">=3.10"

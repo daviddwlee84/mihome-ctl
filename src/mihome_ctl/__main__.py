@@ -25,6 +25,11 @@ from .commands import (
 
 
 def main() -> None:
+    if len(sys.argv) >= 2 and sys.argv[1] in ("--version", "-V"):
+        from . import __version__
+
+        print(f"mihome-ctl {__version__}")
+        return
     result = tyro.extras.subcommand_cli_from_dict(
         {
             "extract": extract.extract,
@@ -43,7 +48,7 @@ def main() -> None:
             "tui": tui.tui,
         },
         prog="mihome-ctl",
-        description="Passwordless QR login to the official Xiaomi cloud: extract per-device tokens (tw/sg friendly) + cloud IR control",
+        description="Passwordless QR login to the official Xiaomi cloud: extract per-device tokens (tw/sg friendly) + cloud IR/device control. `mihome-ctl --version` prints the version.",
     )
     sys.exit(result if isinstance(result, int) else 0)
 
