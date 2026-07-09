@@ -110,7 +110,7 @@ is a thin presentation layer:
 
 - `mihome_ctl.commands` + `__main__` — the **Tyro** CLI (commands above)
 - `mihome_ctl.mcp_server` — an **MCP** server (`mihome-ctl-mcp`, needs `[mcp]`)
-- the **TUI** (`mihome-ctl tui`, `[tui]` extra) — **Remotes / Air-Con / Devices** tabs — is another layer over the same core
+- the **TUI** (`mihome-ctl tui`, `[tui]` extra) — **Remotes / Air-Con / Devices** tabs — is another layer over the same core. The **Devices** tab resolves each device's MIoT spec into a **live per-property panel**: a toggle for on/off, a dropdown for modes, a numeric box for ranges, each showing the property's **current value inline** (auto-loaded when you open a device, or via **Refresh**) with per-row Get/Set — no siid/piid guessing. A manual `siid/piid/aiid` form stays for spec-less devices (`blt.*`/`miir.*`) and raw calls.
 
 ## `ir-code` and licensing (important)
 

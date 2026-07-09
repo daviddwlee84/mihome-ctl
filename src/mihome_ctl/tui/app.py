@@ -15,7 +15,7 @@ import json
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import (
     Button,
@@ -30,10 +30,13 @@ from textual.widgets import (
     RadioButton,
     RadioSet,
     RichLog,
+    Select,
+    Switch,
     TabbedContent,
     TabPane,
 )
 from textual.widgets.option_list import Option
+from textual.widgets.select import InvalidSelectValueError
 
 from ..config import StateDir
 from ..core import miotspec
@@ -53,10 +56,15 @@ class MihomeApp(App):
     CSS = """
     #remotes { width: 45%; }
     #keys { width: 55%; }
-    #devices { height: 35%; }
-    #dev-props { height: 26%; }
+    #devices { height: 30%; }
+    #dev-panel { height: 40%; border: round $primary-darken-2; }
+    .dev-row { height: auto; }
+    .dev-row .pname { width: 30; content-align: left middle; }
+    .dev-row .pcur { width: 12; color: $text-muted; content-align: left middle; }
+    .dev-row Input { width: 18; }
+    .dev-row Select { width: 24; }
     #dev-form Input { width: 14; }
-    #log { height: 25%; border-top: solid $accent; }
+    #log { height: 20%; border-top: solid $accent; }
     """
     BINDINGS = [
         Binding("q", "quit", "Quit"),
@@ -106,14 +114,16 @@ class MihomeApp(App):
                     yield Button("Status", id="ac-status")
             with TabPane("Devices", id="tab-dev"):
                 yield DataTable(id="devices", cursor_type="row", zebra_stripes=True)
-                yield Label("(select a device)", id="dev-name")
-                yield OptionList(id="dev-props")
+                with Horizontal(id="dev-head"):
+                    yield Label("(select a device)", id="dev-name")
+                    yield Button("Refresh values", id="dev-refresh")
+                    yield Checkbox("local", id="dev-local")
+                yield VerticalScroll(id="dev-panel")
                 with Horizontal(id="dev-form"):
                     yield Input(placeholder="siid", id="dev-siid")
                     yield Input(placeholder="piid", id="dev-piid")
                     yield Input(placeholder="aiid", id="dev-aiid")
                     yield Input(placeholder="value / args", id="dev-value")
-                    yield Checkbox("local", id="dev-local")
                 with Horizontal(id="dev-actions"):
                     yield Button("Get", id="dev-get")
                     yield Button("Set", id="dev-set", variant="warning")
@@ -243,12 +253,11 @@ class MihomeApp(App):
     def on_data_table_row_selected(self, message: DataTable.RowSelected) -> None:
         if message.data_table.id == "remotes":
             self.query_one("#keys", OptionList).focus()
+        elif message.data_table.id == "devices":
+            self._refresh_current()  # opening a device auto-loads its current values
 
     # ------------------------------------------------------------------ remotes → send key
     def on_option_list_option_selected(self, message: OptionList.OptionSelected) -> None:
-        if message.option_list.id == "dev-props":
-            self._pick_spec_option(message.option_id)
-            return
         if self._cur_remote is None:
             return
         did, r = self._cur_remote
@@ -296,6 +305,12 @@ class MihomeApp(App):
             return
         if bid in ("dev-get", "dev-set", "dev-call"):
             self._device_action(bid)
+            return
+        if bid == "dev-refresh":
+            self._refresh_current()
+            return
+        if bid and (bid.startswith("pget_") or bid.startswith("pset_") or bid.startswith("acall_")):
+            self._panel_button(bid)
             return
         if self._ac is None:
             self._log("No AC remote (miir.aircondition.*).")
@@ -396,10 +411,17 @@ class MihomeApp(App):
                 if conn is None:
                     return
                 val = ops.miot_get(conn, dev["did"], dev.get("region", "cn"), siid, piid)
-        except Exception as e:  # noqa: BLE001
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - incl. SystemExit from local ops
             self.call_from_thread(self._log, f"[red]error[/] {type(e).__name__}: {e}")
             return
-        self.call_from_thread(self._log, f"{dev.get('name', '')} siid={siid} piid={piid} = {val}")
+        self.call_from_thread(self._dev_get_done, dev, siid, piid, val)
+
+    def _dev_get_done(self, dev: dict, siid: int, piid: int, val) -> None:
+        if self._stale(dev):
+            return
+        self._set_cur(siid, piid, str(val))
+        self._sync_widget(siid, piid, val)
+        self._log(f"{dev.get('name', '')} siid={siid} piid={piid} = {val}")
 
     @work(thread=True, group="cloud")
     def _dev_set(self, dev: dict, siid: int, piid: int, value, local: bool) -> None:
@@ -413,7 +435,7 @@ class MihomeApp(App):
                     return
                 r = ops.miot_set(conn, dev["did"], dev.get("region", "cn"), siid, piid, value)
                 ok, detail = r.ok, ("" if r.ok else str(r.resp))
-        except Exception as e:  # noqa: BLE001
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - incl. SystemExit from local ops
             self.call_from_thread(self._log, f"[red]error[/] {type(e).__name__}: {e}")
             return
         tag = "[green]OK set[/]" if ok else "[red]FAIL[/]"
@@ -433,7 +455,7 @@ class MihomeApp(App):
                     return
                 r = ops.miot_call(conn, dev["did"], dev.get("region", "cn"), siid, aiid, args)
                 ok, detail = r.ok, ("" if r.ok else str(r.resp))
-        except Exception as e:  # noqa: BLE001
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - incl. SystemExit from local ops
             self.call_from_thread(self._log, f"[red]error[/] {type(e).__name__}: {e}")
             return
         tag = "[green]OK action[/]" if ok else "[red]FAIL[/]"
@@ -441,53 +463,203 @@ class MihomeApp(App):
             self._log, f"{tag} {dev.get('name', '')} siid={siid} aiid={aiid} in={args} {detail}"
         )
 
-    # ------------------------------------------------------------------ device MIoT-spec picker
+    # ------------------------------------------------------------------ device MIoT-spec panel
     @work(thread=True, group="spec", exclusive=True)
     def _resolve_spec(self, dev: dict) -> None:
         model = dev.get("model", "")
         try:
-            d = miotspec.describe(self.state, model)
+            spec = miotspec.describe(self.state, model)
         except Exception as e:  # noqa: BLE001
-            self.call_from_thread(self._fill_props, None, model, f"{type(e).__name__}: {e}")
+            self.call_from_thread(self._build_panel, None, model, f"{type(e).__name__}: {e}")
             return
-        self.call_from_thread(self._fill_props, d, model, None)
+        self.call_from_thread(self._build_panel, spec, model, None)
 
-    def _fill_props(self, d, model: str, err) -> None:
-        ol = self.query_one("#dev-props", OptionList)
-        ol.clear_options()
+    async def _build_panel(self, spec, model: str, err) -> None:
+        """Rebuild the per-property widget rows for the selected device (runs on the UI thread)."""
+        cur = self._cur_device
+        if cur is None or model != cur.get("model", ""):
+            return  # device changed while resolving; a newer _build_panel will win
+        panel = self.query_one("#dev-panel", VerticalScroll)
+        rows: list = []
         if err:
-            ol.add_option(Option(f"spec error: {err}", disabled=True))
-            return
-        if d is None:
-            ol.add_option(Option(f"no MIoT spec for {model}", disabled=True))
-            return
-        for p in d.props:
-            c = miotspec.prop_constraint(p)
-            label = (
-                f"[P] {p.service} · {p.name}  s{p.siid} p{p.piid} "
-                f"{p.format} {miotspec.access_flags(p)}" + (f"  {c}" if c else "")
+            rows.append(Label(f"spec error: {err}", classes="dev-row"))
+        elif spec is None:
+            rows.append(
+                Label(f"no MIoT spec for {model} — use the manual form below", classes="dev-row")
             )
-            ol.add_option(Option(label, id=f"p:{p.siid}:{p.piid}"))
-        for a in d.actions:
-            ol.add_option(
-                Option(
-                    f"[A] {a.service} · {a.name}  s{a.siid} a{a.aiid}", id=f"a:{a.siid}:{a.aiid}"
-                )
-            )
-
-    def _pick_spec_option(self, option_id: str | None) -> None:
-        if not option_id or option_id.count(":") != 2:
-            return
-        kind, siid, iid = option_id.split(":")
-        self.query_one("#dev-siid", Input).value = siid
-        if kind == "p":
-            self.query_one("#dev-piid", Input).value = iid
-            self.query_one("#dev-aiid", Input).value = ""
-            self._log(f"filled siid={siid} piid={iid} — press Get or Set")
         else:
-            self.query_one("#dev-aiid", Input).value = iid
-            self.query_one("#dev-piid", Input).value = ""
-            self._log(f"filled siid={siid} aiid={iid} — press Call")
+            rows.extend(self._prop_row(p) for p in spec.props)
+            rows.extend(self._action_row(a) for a in spec.actions)
+            if not rows:
+                rows.append(Label(f"spec for {model} has no properties/actions", classes="dev-row"))
+        # batch() takes the widget lock so overlapping device switches serialize (no DuplicateIds).
+        async with panel.batch():
+            await panel.remove_children()
+            await panel.mount(*rows)
+
+    def _prop_row(self, p) -> Horizontal:
+        children: list = [
+            Label(f"{p.service} · {p.name}", classes="pname"),
+            Label("—", id=f"cur_{p.siid}_{p.piid}", classes="pcur"),
+        ]
+        writable = miotspec.is_writable(p)
+        if writable:
+            children.append(self._editor_for(p))
+        if miotspec.is_readable(p):
+            children.append(Button("Get", id=f"pget_{p.siid}_{p.piid}"))
+        if writable:
+            children.append(Button("Set", id=f"pset_{p.siid}_{p.piid}", variant="warning"))
+        return Horizontal(*children, id=f"row_p_{p.siid}_{p.piid}", classes="dev-row")
+
+    def _editor_for(self, p):
+        wid = f"w_{p.siid}_{p.piid}"
+        kind = miotspec.widget_kind(p)
+        if kind == "bool":
+            return Switch(id=wid)
+        if kind == "enum":
+            return Select(miotspec.enum_options(p), allow_blank=True, id=wid)
+        if kind == "range":
+            rng = miotspec.range_spec(p) or (0, 0, 1)
+            itype = "integer" if (p.format or "").startswith(("int", "uint")) else "number"
+            return Input(type=itype, placeholder=f"{rng[0]}..{rng[1]}", id=wid)
+        return Input(placeholder=p.format or "value", id=wid)
+
+    def _action_row(self, a) -> Horizontal:
+        children: list = [Label(f"{a.service} · {a.name}", classes="pname")]
+        if a.in_:
+            children.append(Input(placeholder="JSON args", id=f"ain_{a.siid}_{a.aiid}"))
+        children.append(Button("Call", id=f"acall_{a.siid}_{a.aiid}", variant="warning"))
+        return Horizontal(*children, id=f"row_a_{a.siid}_{a.aiid}", classes="dev-row")
+
+    # ------------------------------------------------------------------ panel: refresh / row buttons
+    def _refresh_current(self) -> None:
+        dev = self._cur_device
+        if dev is None:
+            self._log("Select a device first.")
+            return
+        local = self.query_one("#dev-local", Checkbox).value
+        self._dev_refresh(dev, local)
+
+    def _panel_button(self, bid: str) -> None:
+        dev = self._cur_device
+        if dev is None:
+            self._log("Select a device first.")
+            return
+        local = self.query_one("#dev-local", Checkbox).value
+        parts = bid.split("_")
+        try:
+            kind, a, b = parts[0], int(parts[1]), int(parts[2])
+        except (IndexError, ValueError):
+            return
+        if kind == "pget":
+            self._dev_get(dev, a, b, local)
+        elif kind == "pset":
+            value, ok = self._read_widget_value(a, b)
+            if not ok:
+                self._log(f"no value entered for siid={a} piid={b}")
+                return
+            self._dev_set(dev, a, b, value, local)
+        elif kind == "acall":
+            self._dev_call(dev, a, b, self._read_action_args(a, b), local)
+
+    def _read_widget_value(self, siid: int, piid: int):
+        """Read a property's editing widget (main thread). Returns ``(value, ok)``."""
+        try:
+            w = self.query_one(f"#w_{siid}_{piid}")
+        except Exception:
+            return None, False
+        if isinstance(w, Switch):
+            return w.value, True
+        if isinstance(w, Select):
+            if w.value is Select.NULL:
+                return None, False
+            return w.value, True
+        if isinstance(w, Input):
+            if w.value == "":
+                return None, False
+            return coerce_value(w.value), True
+        return None, False
+
+    def _read_action_args(self, siid: int, aiid: int) -> list:
+        try:
+            raw = self.query_one(f"#ain_{siid}_{aiid}", Input).value
+        except Exception:
+            return []
+        if not raw.strip():
+            return []
+        args = coerce_value(raw)
+        return args if isinstance(args, list) else [args]
+
+    def _stale(self, dev: dict) -> bool:
+        """True if `dev` is no longer the selected device (a late worker result to discard)."""
+        cur = self._cur_device
+        return cur is None or dev.get("did") != cur.get("did")
+
+    def _set_cur(self, siid: int, piid: int, text: str) -> None:
+        try:
+            self.query_one(f"#cur_{siid}_{piid}", Label).update(text)
+        except Exception:
+            pass
+
+    def _sync_widget(self, siid: int, piid: int, val) -> None:
+        """Reflect a freshly-read value into the row's editing widget, if any."""
+        try:
+            w = self.query_one(f"#w_{siid}_{piid}")
+        except Exception:
+            return
+        if isinstance(w, Switch):
+            w.value = bool(val)
+        elif isinstance(w, Select):
+            try:
+                w.value = val
+            except InvalidSelectValueError:
+                w.clear()
+        elif isinstance(w, Input):
+            w.value = "" if val is None else str(val)
+
+    @work(thread=True, group="cloud")
+    def _dev_refresh(self, dev: dict, local: bool) -> None:
+        model = dev.get("model", "")
+        try:
+            spec = miotspec.describe(self.state, model)
+        except Exception as e:  # noqa: BLE001
+            self.call_from_thread(self._log, f"[red]spec error[/] {type(e).__name__}: {e}")
+            return
+        if spec is None:
+            self.call_from_thread(self._log, f"no MIoT spec for {model} — nothing to refresh")
+            return
+        readable = [(p.siid, p.piid) for p in spec.props if miotspec.is_readable(p)]
+        if not readable:
+            self.call_from_thread(self._log, "no readable properties")
+            return
+        got: dict = {}
+        try:
+            if local:
+                for s, pi in readable:
+                    try:
+                        got[(s, pi)] = ops.local_get(dev, s, pi)
+                    except SystemExit as e:  # device-wide: no token/IP or python-miio missing
+                        self.call_from_thread(self._log, f"[red]local[/] {e}")
+                        break
+                    except Exception as e:  # noqa: BLE001 - one prop failing shouldn't stop the rest
+                        self.call_from_thread(self._log, f"[red]{s}/{pi} {type(e).__name__}: {e}")
+            else:
+                conn = self._cloud_conn()
+                if conn is None:
+                    return
+                got = ops.miot_get_many(conn, dev["did"], dev.get("region", "cn"), readable)
+        except Exception as e:  # noqa: BLE001
+            self.call_from_thread(self._log, f"[red]error[/] {type(e).__name__}: {e}")
+            return
+        self.call_from_thread(self._apply_refresh, dev, got)
+
+    def _apply_refresh(self, dev: dict, got: dict) -> None:
+        if self._stale(dev):
+            return  # a late response for a device we've since navigated away from
+        for (s, pi), val in got.items():
+            self._set_cur(s, pi, str(val))
+            self._sync_widget(s, pi, val)
+        self._log(f"[green]refreshed[/] {dev.get('name', '')} ({len(got)} values)")
 
     def _log(self, msg: str) -> None:
         self.query_one("#log", RichLog).write(msg)

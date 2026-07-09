@@ -72,3 +72,30 @@ def test_urn_describe_and_cache(monkeypatch, tmp_path):
 def test_describe_unknown_model(monkeypatch, tmp_path):
     monkeypatch.setattr(ms.requests, "get", lambda url, **kw: _Resp({"instances": []}))
     assert ms.describe(StateDir(tmp_path), "no.such.model") is None
+
+
+def test_widget_helpers():
+    from mihome_ctl.core.miotspec import SpecProp
+
+    b = SpecProp(2, 1, "Switch", "On", "bool", ["read", "write"])
+    e = SpecProp(
+        2,
+        2,
+        "Light",
+        "Mode",
+        "uint8",
+        ["read", "write"],
+        value_list=[{"value": 0, "description": "Auto"}, {"value": 2, "description": "Night"}],
+    )
+    r = SpecProp(2, 3, "Light", "Bright", "uint8", ["read", "write"], value_range=[1, 100, 1])
+    ro = SpecProp(3, 1, "Env", "Temp", "float", ["read"])
+
+    assert ms.widget_kind(b) == "bool"
+    assert ms.widget_kind(e) == "enum"
+    assert ms.widget_kind(r) == "range"
+    assert ms.widget_kind(ro) == "text"
+    assert ms.enum_options(e) == [("Auto (0)", 0), ("Night (2)", 2)]
+    assert ms.range_spec(r) == (1, 100, 1)
+    assert ms.range_spec(b) is None
+    assert ms.is_writable(b) and not ms.is_writable(ro)
+    assert ms.is_readable(ro) and ms.is_readable(b)

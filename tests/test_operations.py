@@ -80,3 +80,35 @@ def test_miot_call_payload(monkeypatch):
     assert r.ok
     assert cap["path"] == "/miotspec/action"
     assert cap["payload"] == {"params": {"did": "d", "siid": 2, "aiid": 5, "in": [1, 2]}}
+
+
+def test_miot_get_many_payload_and_mapping(monkeypatch):
+    cap = {}
+
+    def fake_api(conn, country, path, payload):
+        cap.update(path=path, payload=payload)
+        # results out of request order, plus one failing entry (code!=0) to be skipped
+        return {
+            "code": 0,
+            "result": [
+                {"did": "d", "siid": 3, "piid": 1, "value": 22},
+                {"did": "d", "siid": 2, "piid": 1, "value": True},
+                {"did": "d", "siid": 9, "piid": 9, "code": -1},
+            ],
+        }
+
+    monkeypatch.setattr(ops, "api", fake_api)
+    got = ops.miot_get_many(None, "d", "tw", [(2, 1), (3, 1), (9, 9)])
+    assert cap["path"] == "/miotspec/prop/get"
+    assert cap["payload"] == {
+        "params": [
+            {"did": "d", "siid": 2, "piid": 1},
+            {"did": "d", "siid": 3, "piid": 1},
+            {"did": "d", "siid": 9, "piid": 9},
+        ]
+    }
+    assert got == {(2, 1): True, (3, 1): 22}  # keyed by result siid/piid; failing entry dropped
+
+
+def test_miot_get_many_empty():
+    assert ops.miot_get_many(None, "d", "tw", []) == {}

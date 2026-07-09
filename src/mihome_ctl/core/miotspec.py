@@ -66,6 +66,49 @@ def prop_constraint(p: SpecProp) -> str:
     return ""
 
 
+def is_readable(p: SpecProp) -> bool:
+    return "read" in p.access
+
+
+def is_writable(p: SpecProp) -> bool:
+    return "write" in p.access
+
+
+def enum_options(p: SpecProp) -> list[tuple[str, int]]:
+    """A property's value-list as ``[("<description> (<value>)", <value>), …]`` (empty if none)."""
+    out: list[tuple[str, int]] = []
+    for x in p.value_list or []:
+        if not isinstance(x, dict):
+            continue
+        try:
+            v = int(x.get("value"))
+        except (TypeError, ValueError):
+            continue
+        out.append((f"{x.get('description', '')} ({v})", v))
+    return out
+
+
+def range_spec(p: SpecProp) -> tuple | None:
+    """``(min, max, step)`` from a numeric property's value-range, else ``None``."""
+    r = p.value_range
+    if not r or len(r) < 2:
+        return None
+    lo, hi = r[0], r[1]
+    step = r[2] if len(r) > 2 else 1
+    return (lo, hi, step)
+
+
+def widget_kind(p: SpecProp) -> str:
+    """Which editing widget fits this property: ``bool`` | ``enum`` | ``range`` | ``text``."""
+    if p.format == "bool":
+        return "bool"
+    if p.value_list:
+        return "enum"
+    if p.value_range:
+        return "range"
+    return "text"
+
+
 def _build_models_map(state: StateDir) -> dict:
     data = requests.get(CATALOG_URL, headers=_HEADERS, timeout=30).json()
     insts = data.get("instances", data) if isinstance(data, dict) else data

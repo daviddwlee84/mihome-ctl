@@ -299,6 +299,32 @@ def miot_get(conn, did: str, country: str, siid: int, piid: int) -> Any:
     return resp
 
 
+def miot_get_many(
+    conn, did: str, country: str, items: list[tuple[int, int]]
+) -> dict[tuple[int, int], Any]:
+    """Read many MIoT properties in one cloud call. `items` is a list of (siid, piid).
+
+    Returns a ``{(siid, piid): value}`` map, keyed off each result's own siid/piid (order is not
+    assumed) and skipping entries that report a non-zero code or carry no value.
+    """
+    if not items:
+        return {}
+    params = [{"did": did, "siid": s, "piid": p} for s, p in items]
+    resp = api(conn, country, "/miotspec/prop/get", {"params": params})
+    res = resp.get("result") if isinstance(resp, dict) else None
+    out: dict[tuple[int, int], Any] = {}
+    if isinstance(res, list):
+        for r in res:
+            if not isinstance(r, dict) or "value" not in r or r.get("code", 0) != 0:
+                continue
+            try:
+                key = (int(r["siid"]), int(r["piid"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            out[key] = r["value"]
+    return out
+
+
 def miot_set(conn, did: str, country: str, siid: int, piid: int, value: Any) -> AcResult:
     """Write one MIoT property over the cloud."""
     resp = api(
